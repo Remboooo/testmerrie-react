@@ -1,147 +1,125 @@
 import './StreamSelector.css';
-import { Component } from 'react';
+import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Drawer from '@mui/material/Drawer';
 import { getStreams } from './BamApi';
 import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
+import { formatBitrate, formatDateTime } from 'FormatUtil';
 
 const UPDATE_INTERVAL = 5000;
 
-export default class StreamSelector extends Component {
-    constructor(props) {
-        super(props);
-        this.state = {open: false, streams: {}, selectedStream: null};
-        this.updateScheduled = false;
-        this.refreshKey = Date.now();
-        if (props.defaultOpen) {
-            setTimeout(() => this.open(), 0);
-        } else {
-            this.updateStreamsOnce();
-        }
+var refreshKey = Date.now();
+var updateScheduled = false;
+
+export default function StreamSelector({ 
+    open=false,
+    onClose=()=>{},
+}) {
+    const [streams, setStreams] = useState([]);
+    const [selectedStream, setSelectedStream] = useState(null);
+    const [selectedProtocol, setSelectedProtocol] = useState(null);
+   
+    useEffect(() => { onOpenChanged() }, [open])
+
+    function updateStreamsOnce() {
+        return getStreams().then(streams => {
+            refreshKey = Date.now();
+            setStreams(streams);
+        });
     }
 
-    open() {
-        this.setState({open: true});
-        this.updateStreams();
-    }
-
-    close() {
-        this.setState({open: false});
-    }
-
-    updateStreams() {
-        this.updateStreamsOnce().then(() => {
-            if (this.state.open) {
-                if (!this.updateScheduled) {
+    function updateStreams() {
+        updateStreamsOnce().then(() => {
+            if (open) {
+                if (!updateScheduled) {
                     setTimeout(() => { 
-                        this.updateScheduled = false;
-                        this.updateStreams();
+                        updateScheduled = false;
+                        updateStreams();
                     }, UPDATE_INTERVAL);
                 }
-                this.updateScheduled = true;
+                updateScheduled = true;
             }
         });
     }
 
-    updateStreamsOnce() {
-        return getStreams().then(streams => {
-            this.refreshKey = Date.now();
-            this.setState({streams: streams});
-        });
-    }
-
-    render() {
-        var content;
-        if (Object.entries(this.state.streams).length != 0) {
-            content = Object.entries(this.state.streams).map(([stream, props], i) => {
-                var media;
-                if (props.thumbnail) {
-                    media = (<CardMedia
-                        component="img"
-                        height="140"
-                        src={props.thumbnail + "?" + this.refreshKey}
-                    />);
-                }
-                return (
-                <Card 
-                    key={stream} 
-                    sx={{ maxWidth: 345 }}
-                    className={this.state.selectedStream == stream ? "selected-stream-card" : ""}
-                >
-                    <CardActionArea
-                        onClick={() => this.selectStream(stream, null)}
-                    >
-                        {media}
-                        <CardContent>
-                            <Typography gutterBottom variant="h5">
-                                {props.name}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Went live at {formatDateTime(props.created)}<br />
-                                In glorious {props.video.width}×{props.video.height} @ {formatBitrate(props.video.bitrate)}
-                            </Typography>
-                        </CardContent>
-                    </CardActionArea>
-                    <CardActions>
-                    {Object.entries(props.streams.main.protocols).map(([protocol, protoProps], i) => (
-                        <Button 
-                            key={protocol} 
-                            size="small"
-                            onClick={() => this.selectStream(stream, protocol)}
-                        >
-                            {protocol}
-                        </Button>
-                    ))}
-                    </CardActions>
-                </Card>);
-            });
-        } else {
-            content = <Box className="waiting-box">
-                <img src={tuinfeest} className="waiting-icon" alt="waiting" /><br />
-                Waiting for someone to start streaming...
-            </Box>
-        }
-
-        return (
-            <Drawer
-                open={this.state.open}
-                onClose={() => this.close()}
-                anchor="top"
-            >
-                <Box sx={{p: 1}}>
-                    {content}
-                </Box>
-            </Drawer>
-        );
-    }
-    
-    selectStream(stream, protocol) {
-        if (stream == this.state.selectedStream && this.state.selectedProtocol == protocol) {
-            this.setState({selectedStream: null, selectedProtocol: null});
-        } else {
-            this.setState({selectedStream: stream, selectedProtocol: protocol});
+    function onOpenChanged() {
+        if (open) {
+            updateStreams();
         }
     }
-}
 
-function formatDateTime(dt) {
-    if (!(dt instanceof Date)) {
-        dt = new Date(dt);
+    function selectStream(stream, protocol) {
+        if (stream === selectedStream && selectedProtocol === protocol) {
+            setSelectedStream(null);
+            setSelectedProtocol(null);
+        } else {
+            setSelectedStream(stream);
+            setSelectedProtocol(protocol);
+        }
     }
-    if (dt.toLocaleDateString() == new Date().toLocaleDateString()) {
-        return dt.toLocaleTimeString();
+
+    var content;
+    if (Object.entries(streams).length === 0) {
+        content = <Box className="waiting-box">
+            <img src={tuinfeest} className="waiting-icon" alt="waiting" /><br />
+            Waiting for someone to start streaming...
+        </Box>
     } else {
-        return dt.toLocaleString();
-    }
-}
+        content = Object.entries(streams).map(([stream, props], i) => {
+            var media;
+            if (props.thumbnail) {
+                media = (<CardMedia
+                    component="img"
+                    height="140"
+                    src={props.thumbnail + "?" + refreshKey}
+                />);
+            }
+            return (
+            <Card 
+                key={stream} 
+                sx={{ maxWidth: 345 }}
+                className={selectedStream === stream ? "selected-stream-card" : ""}
+            >
+                <CardActionArea
+                    onClick={() => selectStream(stream, null)}
+                >
+                    {media}
+                    <CardContent>
+                        <Typography gutterBottom variant="h5">
+                            {props.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Went live at {formatDateTime(props.created)}<br />
+                            In glorious {props.video.width}×{props.video.height} @ {formatBitrate(props.video.bitrate)}
+                        </Typography>
+                    </CardContent>
+                </CardActionArea>
+                <CardActions>
+                {Object.entries(props.streams.main.protocols).map(([protocol, protoProps], i) => (
+                    <Button 
+                        key={protocol} 
+                        size="small"
+                        onClick={() => selectStream(stream, protocol)}
+                    >
+                        {protocol}
+                    </Button>
+                ))}
+                </CardActions>
+            </Card>);
+        });
+    } 
 
-function formatBitrate(b) {
-    let prefix = 0;
-    while (b > 1000) {
-        b /= 1000;
-        prefix++;
-    }
-    return b.toFixed(1) + ["", "k", "M", "G", "T", "P"][prefix] + "bps";
+    return (
+        <Drawer
+            open={open}
+            onClose={onClose}
+            anchor="top"
+        >
+            <Box sx={{p: 1}}>
+                {content}
+            </Box>
+        </Drawer>
+    );
 }

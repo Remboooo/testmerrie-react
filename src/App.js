@@ -1,24 +1,20 @@
 import './App.css';
 
-import React, { Component, createRef } from 'react';
+import { useEffect, useState } from 'react';
 import OvenPlayerComponent from './OvenPlayer.js'
 import StreamSelector from './StreamSelector';
 
-export default class App extends Component {
-  constructor(props) {
-    super(props);
-    this.selector = null;
-    this.setSelectorRef = (ref) => this.selector = ref;
-  }
+export default function App({}) {
+  const [streamSelectorOpen, setStreamSelectorOpen] = useState(false);
 
-  render() {
-    return (
-      <div className="App">
-        <OvenPlayerComponent
-          onClicked={() => this.selector.open()}
-        />
-        <StreamSelector defaultOpen={true} ref={(ref) => this.setSelectorRef(ref)} />
-      </div>
-    );
-  }
+  useEffect(() => setStreamSelectorOpen(true), []);
+
+  return (
+    <div className="App">
+      <OvenPlayerComponent
+        onClicked={() => setStreamSelectorOpen(true)}
+      />
+      <StreamSelector open={streamSelectorOpen} onClose={() => setStreamSelectorOpen(false)} />
+    </div>
+  );
 }

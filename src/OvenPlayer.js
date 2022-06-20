@@ -1,89 +1,85 @@
 import OvenPlayer from 'ovenplayer'
 
-import React, { Component, createRef } from 'react';
+import React, { Component, createRef, useEffect } from 'react';
 
-export default class OvenPlayerComponent extends Component {
-    constructor(props) {
-        super(props);
-        this.player = null;
-        this.options = props.options;
-        this.playerRef = createRef();
-        console.log(props);
+let player = null;
+
+export default function OvenPlayerComponent({
+        options = {},
+        onReady = () => {},
+        onMetaChanged = (meta) => {},
+        onStateChanged = (state) => {},
+        onResized = (newSize) => {},
+        onPlaybackRateChanged = (newRate) => {},
+        onSeek = (seekTo) => {},
+        onSeeked = () => {},
+        onTime = (newTime) => {},
+        onBufferChanged = (buffer) => {},
+        onMute = (newVolumePercentage) => {},
+        onVolumeChanged = (newVolumePercentage) => {},
+        onPlaylistChanged = (newPlaylistIndex) => {},
+        onSourceChanged = (qualityIndex) => {},
+        onQualityLevelChanged = (qualityLevel) => {},
+        onCueChanged = (cue) => {},
+        onTimeDisplayModeChanged = (mode) => {},
+        onAdChanged = (ad) => {},
+        onAdTime = (adTime) => {},
+        onAdComplete = (adComplete) => {},
+        onFullscreenChanged = (isFullscreen) => {},
+        onClicked = (event) => {},
+        onAllPlaylistEnded = () => {},
+        onHlsPrepared = (obj) => {},
+        onHlsDestroyed = () => {},
+        onDashPrepared = (obj) => {},
+        onDashDestroyed = () => {},
+        onDestroy = () => {},
+}) {
+    let playerRef = createRef();
+
+    function registerCallbacks() {
+        player = OvenPlayer.create(playerRef.current, options);
+        player.on('ready', onReady);
+        player.on('metaChanged', onMetaChanged);
+        player.on('stateChanged', onStateChanged);
+        player.on('resized', onResized);
+        player.on('playbackRateChanged', onPlaybackRateChanged);
+        player.on('seek', onSeek);
+        player.on('seeked', onSeeked);
+        player.on('time', onTime);
+        player.on('bufferChanged', onBufferChanged);
+        player.on('mute', onMute);
+        player.on('volumeChanged', onVolumeChanged);
+        player.on('playlistChanged', onPlaylistChanged);
+        player.on('sourceChanged', onSourceChanged);
+        player.on('qualityLevelChanged', onQualityLevelChanged);
+        player.on('cueChanged', onCueChanged);
+        player.on('timeDisplayModeChanged', onTimeDisplayModeChanged);
+        player.on('adChanged', onAdChanged);
+        player.on('adTime', onAdTime);
+        player.on('adComplete', onAdComplete);
+        player.on('fullscreenChanged', onFullscreenChanged);
+        player.on('clicked', onClicked);
+        player.on('allPlaylistEnded', onAllPlaylistEnded);
+        player.on('hlsPrepared', onHlsPrepared);
+        player.on('hlsDestroyed', onHlsDestroyed);
+        player.on('dashPrepared', onDashPrepared);
+        player.on('dashDestroyed', onDashDestroyed);
+        player.on('destroy', onDestroy);
     }
 
-    render() {
-        return(
-            <div className="ovenplayer" ref={this.playerRef}>
-            </div>
-        );
-    }
-
-    componentDidMount() {
-        this.player = OvenPlayer.create(this.playerRef.current, this.options);
-        this.player.on('ready', this.props.onReady);
-        this.player.on('metaChanged', this.props.onMetaChanged);
-        this.player.on('stateChanged', this.props.onStateChanged);
-        this.player.on('resized', this.props.onResized);
-        this.player.on('playbackRateChanged', this.props.onPlaybackRateChanged);
-        this.player.on('seek', this.props.onSeek);
-        this.player.on('seeked', this.props.onSeeked);
-        this.player.on('time', this.props.onTime);
-        this.player.on('bufferChanged', this.props.onBufferChanged);
-        this.player.on('mute', this.props.onMute);
-        this.player.on('volumeChanged', this.props.onVolumeChanged);
-        this.player.on('playlistChanged', this.props.onPlaylistChanged);
-        this.player.on('sourceChanged', this.props.onSourceChanged);
-        this.player.on('qualityLevelChanged', this.props.onQualityLevelChanged);
-        this.player.on('cueChanged', this.props.onCueChanged);
-        this.player.on('timeDisplayModeChanged', this.props.onTimeDisplayModeChanged);
-        this.player.on('adChanged', this.props.onAdChanged);
-        this.player.on('adTime', this.props.onAdTime);
-        this.player.on('adComplete', this.props.onAdComplete);
-        this.player.on('fullscreenChanged', this.props.onFullscreenChanged);
-        this.player.on('clicked', this.props.onClicked);
-        this.player.on('allPlaylistEnded', this.props.onAllPlaylistEnded);
-        this.player.on('hlsPrepared', this.props.onHlsPrepared);
-        this.player.on('hlsDestroyed', this.props.onHlsDestroyed);
-        this.player.on('dashPrepared', this.props.onDashPrepared);
-        this.player.on('dashDestroyed', this.props.onDashDestroyed);
-        this.player.on('destroy', this.props.onDestroy);
-    }
-
-    componentWillUnmount() {
-        if (this.player) {
-            this.player.remove();
-            this.player = null;
+    function destroy() {
+        if (player) {
+            player.remove();
+            player = null;
         }
     }
-}
 
-OvenPlayerComponent.defaultProps = {
-    options: {},
-    onReady: () => {},
-    onMetaChanged: (meta) => {},
-    onStateChanged: (state) => {},
-    onResized: (newSize) => {},
-    onPlaybackRateChanged: (newRate) => {},
-    onSeek: (seekTo) => {},
-    onSeeked: () => {},
-    onTime: (newTime) => {},
-    onBufferChanged: (buffer) => {},
-    onMute: (newVolumePercentage) => {},
-    onVolumeChanged: (newVolumePercentage) => {},
-    onPlaylistChanged: (newPlaylistIndex) => {},
-    onSourceChanged: (qualityIndex) => {},
-    onQualityLevelChanged: (qualityLevel) => {},
-    onCueChanged: (cue) => {},
-    onTimeDisplayModeChanged: (mode) => {},
-    onAdChanged: (ad) => {},
-    onAdTime: (adTime) => {},
-    onAdComplete: (adComplete) => {},
-    onFullscreenChanged: (isFullscreen) => {},
-    onClicked: (event) => {},
-    onAllPlaylistEnded: () => {},
-    onHlsPrepared: (obj) => {},
-    onHlsDestroyed: () => {},
-    onDashPrepared: (obj) => {},
-    onDashDestroyed: () => {},
-    onDestroy: () => {},
+    useEffect(() => {
+        registerCallbacks();
+        return destroy;
+    }, [])
+
+    return(
+        <div className="ovenplayer" ref={playerRef}></div>
+    );
 }
