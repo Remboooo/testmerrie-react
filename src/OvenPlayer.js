@@ -1,29 +1,25 @@
 import OvenPlayer from 'ovenplayer'
 
-import React, { Component } from 'react';
+import React, { Component, createRef } from 'react';
 
 export default class OvenPlayerComponent extends Component {
     constructor(props) {
         super(props);
-        this.playerElement = null;
         this.player = null;
         this.options = props.options;
-        this.setPlayerRef = element => {
-            console.log(element);
-            this.playerElement = element;
-        };
+        this.playerRef = createRef();
+        console.log(props);
     }
 
     render() {
         return(
-            <div className="ovenplayer" ref={this.setPlayerRef}>
-                herro
+            <div className="ovenplayer" ref={this.playerRef}>
             </div>
         );
     }
 
     componentDidMount() {
-        this.player = OvenPlayer.create(this.playerElement, this.options);
+        this.player = OvenPlayer.create(this.playerRef.current, this.options);
         this.player.on('ready', this.props.onReady);
         this.player.on('metaChanged', this.props.onMetaChanged);
         this.player.on('stateChanged', this.props.onStateChanged);
@@ -56,7 +52,7 @@ export default class OvenPlayerComponent extends Component {
     componentWillUnmount() {
         if (this.player) {
             this.player.remove();
-            //this.player = null;
+            this.player = null;
         }
     }
 }
@@ -83,7 +79,7 @@ OvenPlayerComponent.defaultProps = {
     onAdTime: (adTime) => {},
     onAdComplete: (adComplete) => {},
     onFullscreenChanged: (isFullscreen) => {},
-    onClicked: (event) => {console.log('click');},
+    onClicked: (event) => {},
     onAllPlaylistEnded: () => {},
     onHlsPrepared: (obj) => {},
     onHlsDestroyed: () => {},
