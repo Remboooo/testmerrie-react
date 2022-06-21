@@ -44,6 +44,14 @@
   }
 }
 
+.waiting-icon {
+    height: 5em;
+}
+
+.waiting-box {
+    height: 15em;
+}
+
 .selected-stream-card {
     background-color: #4c6e89 !important;
     transition: all 2s ease;

@@ -1,5 +1,5 @@
 
-export function formatDateTime(dt) {
+export function formatDateTime(dt: (Date|string)) {
     if (!(dt instanceof Date)) {
         dt = new Date(dt);
     }
@@ -10,7 +10,7 @@ export function formatDateTime(dt) {
     }
 }
 
-export function formatBitrate(b) {
+export function formatBitrate(b: number) {
     let prefix = 0;
     while (b > 1000) {
         b /= 1000;
