@@ -5,6 +5,7 @@
   "dependencies": {
     "@emotion/react": "^11.9.3",
     "@emotion/styled": "^11.9.3",
+    "@material/snackbar": "^14.0.0",
     "@mui/icons-material": "^5.8.4",
     "@mui/material": "^5.8.4",
     "@mui/system": "^5.8.4",
@@ -15,6 +16,7 @@
     "@types/node": "^18.0.0",
     "@types/react": "^18.0.14",
     "@types/react-dom": "^18.0.5",
+    "notistack": "^2.0.5",
     "ovenplayer": "^0.10.21",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

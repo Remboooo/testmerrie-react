@@ -3,18 +3,19 @@ import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Drawer from '@mui/material/Drawer';
-import { getStreams, StreamMap, StreamSpec } from './BamApi';
+import { getStreams, StreamMap, StreamProtocol, StreamSpec } from './BamApi';
 import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 
 const UPDATE_INTERVAL = 5000;
 
+const DEFAULT_PROTOCOL = "webrtc-tcp";
 
 export type StreamSelection = {
     key: string,
     stream: StreamSpec,
-    protocol: string|null, 
+    protocol: StreamProtocol, 
 };
 
 type StreamListener = (newMap: StreamMap, refreshKey: number) => void;
@@ -35,13 +36,13 @@ class StreamRefresher {
         });
     }
 
-    updateStreams() {
+    updateStreamsAndScheduleNext() {
         this.updateStreamsOnce().then(() => {
             if (this.running) {
                 if (!this.updateScheduled) {
                     setTimeout(() => { 
                         this.updateScheduled = false;
-                        this.updateStreams();
+                        this.updateStreamsAndScheduleNext();
                     }, UPDATE_INTERVAL);
                 }
                 this.updateScheduled = true;
@@ -52,7 +53,7 @@ class StreamRefresher {
     start() {
         if (!this.running) {
             this.running = true;
-            this.updateStreams();
+            this.updateStreamsAndScheduleNext();
         }
     }
 
@@ -80,7 +81,7 @@ export default function StreamSelector({
 
     useEffect(() => { onSelectionChange(selection); }, [selection, onSelectionChange]);
 
-    function selectStream(stream: string, protocol: string|null) {
+    function selectStream(stream: string, protocol: StreamProtocol) {
         if (stream === selection?.key && protocol === selection?.protocol) {
             setSelection(null);
         } else {
@@ -112,7 +113,7 @@ export default function StreamSelector({
                     className={selection?.key === key ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
-                        onClick={() => selectStream(key, null)}
+                        onClick={() => selectStream(key, DEFAULT_PROTOCOL)}
                     >
                         {media}
                         <CardContent>
@@ -126,15 +127,16 @@ export default function StreamSelector({
                         </CardContent>
                     </CardActionArea>
                     <CardActions>
-                    {Object.entries(props.streams.main.protocols).map(([protocol, url], i) => (
-                        <Button 
+                    {Object.entries(props.streams.main.protocols).map(([protocolString, url], i) => {
+                        const protocol = protocolString as StreamProtocol; // for some reason Object.entries(T) returns [string, string] tuples in stead of [keyof T, string]
+                        return <Button 
                             key={protocol} 
                             size="small"
                             onClick={() => selectStream(key, protocol)}
                         >
                             {protocol}
                         </Button>
-                    ))}
+                    })}
                     </CardActions>
                 </Card>
             );

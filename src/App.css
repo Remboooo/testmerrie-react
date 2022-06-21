@@ -11,21 +11,29 @@ body {
   height: 100%;
   width: 100%;
   min-height: 100vh;
-}
-
-.ovenplayer {
-  background: url(poster.png) no-repeat;
   background-size: cover;
   background-position: center;
   background-clip: border-box;
-  height: 100vh;
-  width: 100%;
+}
+
+.App.idle {
+  background: url(poster.png) no-repeat center;
+  background-size: cover;
 }
 
 @media (max-aspect-ratio: 16/9) {
-  .OvenPlayer {
+  .App {
     background-size: contain;
   }
+}
+
+.idle div {
+  visibility: hidden;
+}
+
+.ovenplayer {
+  height: 100vh;
+  width: 100%;
 }
 
 .op-message-box .op-message-container, .op-spinner-container {

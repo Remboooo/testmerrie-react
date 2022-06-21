@@ -21,6 +21,8 @@ export type StreamProtocolUrlMap = {
     "webrtc-tcp"?: string,
 }
 
+export type StreamProtocol = keyof StreamProtocolUrlMap;
+
 export type StreamQualityMap = {
     main: StreamProtocolUrlMap,
 }

@@ -3,11 +3,21 @@ import OvenPlayer from 'ovenplayer'
 import React, { createRef, useEffect, useState } from 'react';
 
 type OvenPlayerInstance = ReturnType<typeof OvenPlayer.create>;
-type OvenPlayerConfig = Parameters<typeof OvenPlayer.create>[1];
-type OvenPlayerState = "idle"|"complete"|"paused"|"playing"|"error"|"loading"|"stalled"|"adLoaded"|"adPlaying"|"adPaused"|"adComplete";
-type OvenPlayerSize = "large"|"medium"|"small"|"xsmall";
+export type OvenPlayerConfig = Parameters<typeof OvenPlayer.create>[1];
+export type OvenPlayerState = "idle"|"complete"|"paused"|"playing"|"error"|"loading"|"stalled"|"adLoaded"|"adPlaying"|"adPaused"|"adComplete";
+export type OvenPlayerSize = "large"|"medium"|"small"|"xsmall";
+export type OvenPlayerSourceType = 'webrtc' | 'llhls' | 'hls' | 'lldash' | 'dash' | 'mp4';
+export type OvenPlayerSource = {
+    type: OvenPlayerSourceType;
+    file: string;
+    label?: string;
+    framerate?: number;
+    sectionStart?: number;
+    sectionEnd?: number;
+}
 
-type OvenPlayerProps = {
+export type OvenPlayerProps = {
+    className: string,
     playerOptions: OvenPlayerConfig,
     onReady: () => void,
     onMetaChanged: (event: {duration: number, isP2P: boolean, type: string}) => void,
@@ -36,10 +46,13 @@ type OvenPlayerProps = {
     onDashPrepared: (dashObject: any) => void,
     onDashDestroyed: () => void,
     onDestroy: () => void,
+    sources: OvenPlayerSource[],
+    volume: number,
 };
 
 export default function OvenPlayerComponent({
-        playerOptions = {},
+        className = "",
+        playerOptions = {autoStart: true},
         onReady = () => {},
         onMetaChanged = () => {},
         onStateChanged = (state) => {},
@@ -67,11 +80,13 @@ export default function OvenPlayerComponent({
         onDashPrepared = (obj) => {},
         onDashDestroyed = () => {},
         onDestroy = () => {},
+        sources = [],
+        volume = 100,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = createRef<HTMLDivElement>();
     let [player, setPlayer] = useState<OvenPlayerInstance|null>(null);
 
-    function registerCallbacks() {
+    function createPlayer() {
         if (playerElementRef.current === null) {
             console.error("No player div found");
             return;
@@ -109,17 +124,36 @@ export default function OvenPlayerComponent({
         }
     }
 
-    useEffect(() => {
-        function destroy() {
-            if (player) {
-                player.remove();
-                setPlayer(null);
-            }
+    function destroy() {
+        if (player) {
+            player.remove();
+            setPlayer(null);
         }
-    
-        registerCallbacks();
+    }
+
+    useEffect(() => {
         return destroy;
-    }, [player, playerElementRef])
+    }, [])
+
+    useEffect(() => {
+        createPlayer();
+    }, [playerElementRef])
+
+    useEffect(() => {
+        if (player) {
+            console.log("loading sources", sources);
+            player.stop();
+            player.load(sources);
+            player.setCurrentSource(0);
+            player.play();
+        }
+    }, [player, sources]);
+
+    useEffect(() => {
+        if (player) {
+            player.setVolume(volume);
+        }
+    }, [player, volume]);
 
     return(
         <div className="ovenplayer" ref={playerElementRef}></div>
