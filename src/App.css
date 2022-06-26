@@ -16,7 +16,7 @@ body {
   background-clip: border-box;
 }
 
-.App.idle {
+.App.idle, .App.paused {
   background: url(poster.png) no-repeat center;
   background-size: cover;
 }
@@ -27,6 +27,17 @@ body {
   }
 }
 
+.invisible-menu-opener {
+  background-color: transparent;
+  /* background-color: #f0f; */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  height: 25vh;
+  width: 100vw;
+}
+
 .idle div {
   visibility: hidden;
 }
@@ -34,6 +45,10 @@ body {
 .ovenplayer {
   height: 100vh;
   width: 100%;
+}
+
+.paused .ovenplayer {
+  visibility: hidden;
 }
 
 .op-message-box .op-message-container, .op-spinner-container {

@@ -1,8 +1,8 @@
-@media (prefers-reduced-motion: no-preference) {
+/* @media (prefers-reduced-motion: no-preference) { */
     .waiting-icon {
-        animation: heartbeat infinite 1s linear;
+        animation: heartbeat infinite .75s linear;
     }
-}
+/* } */
 
 .waiting-box {
     display: flex;
@@ -28,7 +28,7 @@
   }
   40%
   {
-    transform: scale( .75 );
+    transform: scale( .85 );
   }
   60%
   {
@@ -36,7 +36,7 @@
   }
   80%
   {
-    transform: scale( .75 );
+    transform: scale( .8 );
   }
   100%
   {

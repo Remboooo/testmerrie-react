@@ -1,10 +1,11 @@
 import './App.css';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
-import StreamSelector, { StreamSelection } from './StreamSelector';
+import StreamSelector from './StreamSelector';
 import { StreamProtocol } from './BamApi';
 import { useSnackbar } from 'notistack';
+import { AvailableStreamUpdate, StreamManager, StreamSelection } from './StreamManager';
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
@@ -12,59 +13,81 @@ const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceTyp
   "webrtc-tcp": "webrtc",
 }
 
+const STREAM_MANAGER = new StreamManager();
+
+function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): OvenPlayerSource[] {
+  return selection === null ? [] : [{
+    type: PROTOCOL_TO_OVENPLAYER_TYPE[selection.protocol],
+    file: selection.stream.streams.main.protocols[selection.protocol] as string
+  }]
+}
+
 export default function App() {
   const [streamSelectorOpen, setStreamSelectorOpen] = useState<boolean>(false);
-  const [streamSelection, setStreamSelection] = useState<StreamSelection|null>(null);
+  const [availableStreamUpdate, setAvailableStreamUpdate] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
+  const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [sourcesList, setSourcesList] = useState<OvenPlayerSource[]>([]);
-  const [playerStateClassName, setPlayerStateClassName] = useState<string>("idle");
-
+  const [mouseOnStreamSelector, setMouseOnStreamSelector] = useState<boolean>(false);
+  const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
   const { enqueueSnackbar, } = useSnackbar();
 
-  useEffect(() => setStreamSelectorOpen(true), []);
+  useEffect(() => {setImmediate(() => {setStreamSelectorOpen(true);});}, []);
 
   useEffect(() => {
-    if (!streamSelection?.stream) {
-      setSourcesList([]);
-      return;
-    }
-    let stream = streamSelection.stream;
-    let protocol = streamSelection.protocol;
-    let url = stream.streams.main.protocols[protocol];
-    if (url !== undefined) {
-      setSourcesList([{
-        file: url,
-        type: PROTOCOL_TO_OVENPLAYER_TYPE[protocol],
-        label: stream.name,
-      }])
-    } else {
-      enqueueSnackbar("Stream heeft geen " + protocol + "stream", {variant: "error"});
-    }
-
-  }, [streamSelection, enqueueSnackbar]);
+    STREAM_MANAGER.setAvailableStreamListener(setAvailableStreamUpdate);
+  }, [setAvailableStreamUpdate]);
 
   useEffect(() => {
-    console.log("create");
-    return () => console.log("destroy");
-  }, [])
+    STREAM_MANAGER.setSelectedStreamListener(setSelectedStream);
+  }, [setSelectedStream]);
 
-  function onPlayerStateChanged(event: {prevstate: OvenPlayerState, newstate: OvenPlayerState}) {
-    console.log("new state", event.newstate);
-    setPlayerStateClassName(event.newstate);
+  useEffect(() => {
+    setSourcesList(streamSelectionToOvenPlayerSourceList(selectedStream));
+  }, [selectedStream, setSourcesList]);
+
+  function tryRestartAfterError() {
+    // TODO
   }
 
+  useEffect(() => {
+    if (!mouseOnStreamSelector && selectedStream !== null) {
+      setStreamSelectorOpen(false);
+    }
+    else if (mouseOnStreamSelector) {
+      setStreamSelectorOpen(true);
+    }
+  }, [mouseOnStreamSelector, selectedStream])
+
+  useEffect(() => {
+    console.log("new state", playerState);
+
+    if (playerState === "error") {
+      setTimeout(tryRestartAfterError, 1000);
+    }
+  }, [playerState]);
+
   return (
-    <div className={"App " + playerStateClassName}>
+    <div className={"App " + playerState}>
       <OvenPlayerComponent
-        onClicked={() => setStreamSelectorOpen(true)}
-        onStateChanged={onPlayerStateChanged}
+        onClicked={() => {}}
+        onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
         sources={sourcesList}
         playerOptions={{autoStart: true, controls: false}}
         volume={100}
       />
+      <div 
+        className="invisible-menu-opener"
+        onMouseOver={() => {setMouseOnStreamSelector(true);}}
+      ></div>
       <StreamSelector 
         open={streamSelectorOpen} 
-        onClose={() => setStreamSelectorOpen(false)} 
-        onSelectionChange={setStreamSelection}
+        onClose={() => {setMouseOnStreamSelector(false);}} 
+        onStreamRequested={(selection) => STREAM_MANAGER.requestStreamSelection(selection)}
+        streams={availableStreamUpdate.streamMap}
+        screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
+        currentStream={selectedStream}
+        onMouseOver={() => {setMouseOnStreamSelector(true);}}
+        onMouseOut={() => {setMouseOnStreamSelector(false);}}
       />
     </div>
   );

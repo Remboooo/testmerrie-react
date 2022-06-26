@@ -1,92 +1,50 @@
 import './StreamSelector.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Drawer from '@mui/material/Drawer';
-import { getStreams, StreamMap, StreamProtocol, StreamSpec } from './BamApi';
+import { StreamMap, StreamProtocol } from './BamApi';
 import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
+import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
 
-const UPDATE_INTERVAL = 5000;
-
-const DEFAULT_PROTOCOL = "webrtc-tcp";
-
-export type StreamSelection = {
-    key: string,
-    stream: StreamSpec,
-    protocol: StreamProtocol, 
+export type StreamSelectorProps = {
+    open: boolean,
+    onClose: () => void,
+    streams: StreamMap,
+    screenshotTimestamp: number,
+    onStreamRequested: (selection: StreamSelectionRequest) => void,
+    currentStream: StreamSelection,
+    onMouseOver?: React.MouseEventHandler<HTMLDivElement>,
+    onMouseOut?: React.MouseEventHandler<HTMLDivElement>,
 };
 
-type StreamListener = (newMap: StreamMap, refreshKey: number) => void;
+export default function StreamSelector(props: StreamSelectorProps) {
+    const {
+        open,
+        onClose,
+        streams,
+        screenshotTimestamp,
+        onStreamRequested,
+        currentStream,
+        onMouseOver = () => {},
+        onMouseOut = () => {},
+    } = props;
 
-class StreamRefresher {
-    running: boolean = false;
-    updateScheduled: boolean = false;
-    refreshKey: number = 0;
+    const [selection, setSelection] = useState<StreamSelectionRequest>(NO_SELECTION);
 
-    constructor(private listener: StreamListener) {}
+    useEffect(() => { onStreamRequested(selection); }, [selection]);
 
-    updateStreamsOnce() {
-        return getStreams().then(streams => {
-            if (this.running) {
-                this.refreshKey = Date.now();
-                this.listener(streams, this.refreshKey);
-            }
-        });
-    }
-
-    updateStreamsAndScheduleNext() {
-        this.updateStreamsOnce().then(() => {
-            if (this.running) {
-                if (!this.updateScheduled) {
-                    setTimeout(() => { 
-                        this.updateScheduled = false;
-                        this.updateStreamsAndScheduleNext();
-                    }, UPDATE_INTERVAL);
-                }
-                this.updateScheduled = true;
-            }
-        });
-    }
-
-    start() {
-        if (!this.running) {
-            this.running = true;
-            this.updateStreamsAndScheduleNext();
-        }
-    }
-
-    stop() {
-        this.running = false;
-    }
-}
-
-export default function StreamSelector({ 
-    open=false,
-    onClose=()=>{},
-    onSelectionChange=(selection: StreamSelection|null) => {},
-}) {
-    const [[streams, refreshKey], setStreamsAndRefreshKey] = useState<[StreamMap, number]>([{}, 0]);
-    const [streamRefresher, ] = useState<StreamRefresher>(new StreamRefresher(((streams, refreshKey) => setStreamsAndRefreshKey([streams, refreshKey]))));
-    const [selection, setSelection] = useState<StreamSelection|null>(null);
-   
-    useEffect(() => { 
-        if (open) {
-            streamRefresher.start();
+    function selectStream(stream: string, protocol: StreamProtocol|null) {
+        var newSelection: StreamSelectionRequest;
+        if (stream === selection?.key && (protocol === selection?.protocol || protocol === null)) {
+            newSelection = NO_SELECTION;
         } else {
-            streamRefresher.stop();
+            newSelection = {key: stream, protocol: protocol};
         }
-    }, [open, streamRefresher]);
-
-    useEffect(() => { onSelectionChange(selection); }, [selection, onSelectionChange]);
-
-    function selectStream(stream: string, protocol: StreamProtocol) {
-        if (stream === selection?.key && protocol === selection?.protocol) {
-            setSelection(null);
-        } else {
-            setSelection({key: stream, stream: streams[stream], protocol: protocol});
-        }
+        console.log("New selection", newSelection);
+        setSelection(newSelection);
     }
 
     var content;
@@ -103,17 +61,18 @@ export default function StreamSelector({
                 media = (<CardMedia
                     component="img"
                     height="140"
-                    src={props.thumbnail + "?" + refreshKey}
+                    src={props.thumbnail + "?" + screenshotTimestamp}
                 />);
             }
+            const isSelected = currentStream?.key === key;
             return (
                 <Card 
                     key={key} 
                     sx={{ maxWidth: 345 }}
-                    className={selection?.key === key ? "selected-stream-card" : ""}
+                    className={isSelected ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
-                        onClick={() => selectStream(key, DEFAULT_PROTOCOL)}
+                        onClick={() => selectStream(key, null)}
                     >
                         {media}
                         <CardContent>
@@ -129,8 +88,10 @@ export default function StreamSelector({
                     <CardActions>
                     {Object.entries(props.streams.main.protocols).map(([protocolString, url], i) => {
                         const protocol = protocolString as StreamProtocol; // for some reason Object.entries(T) returns [string, string] tuples in stead of [keyof T, string]
+                        const isSelectedProtocol = isSelected && currentStream?.protocol === protocol;
                         return <Button 
                             key={protocol} 
+                            variant={isSelectedProtocol ? "contained" : "text"}
                             size="small"
                             onClick={() => selectStream(key, protocol)}
                         >
@@ -149,7 +110,11 @@ export default function StreamSelector({
             onClose={onClose}
             anchor="top"
         >
-            <Box sx={{p: 1}}>
+            <Box 
+                sx={{p: 1}}
+                onMouseOver={onMouseOver}
+                onMouseOut={onMouseOut}
+            >
                 {content}
             </Box>
         </Drawer>

@@ -46,6 +46,7 @@ export type OvenPlayerProps = {
     onDashPrepared: (dashObject: any) => void,
     onDashDestroyed: () => void,
     onDestroy: () => void,
+    playerRef: (player: OvenPlayerInstance) => void,
     sources: OvenPlayerSource[],
     volume: number,
 };
@@ -80,11 +81,18 @@ export default function OvenPlayerComponent({
         onDashPrepared = (obj) => {},
         onDashDestroyed = () => {},
         onDestroy = () => {},
+        playerRef = (instance: OvenPlayerInstance) => {},
         sources = [],
         volume = 100,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = createRef<HTMLDivElement>();
     let [player, setPlayer] = useState<OvenPlayerInstance|null>(null);
+
+    useEffect(() => {
+        if (player) {
+            playerRef(player);
+        }
+    }, [playerRef, player]);
 
     function createPlayer() {
         if (playerElementRef.current === null) {
@@ -143,9 +151,11 @@ export default function OvenPlayerComponent({
         if (player) {
             console.log("loading sources", sources);
             player.stop();
-            player.load(sources);
-            player.setCurrentSource(0);
-            player.play();
+            if (sources.length !== 0) {
+                player.load(sources);
+                player.setCurrentSource(0);
+                player.play();
+            }
         }
     }, [player, sources]);
 
@@ -156,6 +166,9 @@ export default function OvenPlayerComponent({
     }, [player, volume]);
 
     return(
-        <div className="ovenplayer" ref={playerElementRef}></div>
+        <div 
+            className="ovenplayer"
+            ref={playerElementRef}
+        ></div>
     );
 }
