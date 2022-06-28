@@ -1,46 +1,36 @@
 import './StreamSelector.css';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Drawer from '@mui/material/Drawer';
 import { StreamMap, StreamProtocol } from './BamApi';
-import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia, Checkbox, FormControlLabel, makeStyles } from '@mui/material';
+import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
-import FormGroup from '@mui/material/FormGroup';
 import theme from './theme';
 
 export type StreamSelectorProps = {
-    open: boolean,
-    onClose: () => void,
     streams: StreamMap,
     screenshotTimestamp: number,
     onStreamRequested: (selection: StreamSelectionRequest) => void,
     currentStream: StreamSelection,
-    onMouseOver?: React.MouseEventHandler<HTMLDivElement>,
-    onMouseOut?: React.MouseEventHandler<HTMLDivElement>,
-    startStreamWhenAvailable?: boolean,
-    setStartStreamWhenAvailable?: (startStreamWhenAvailable: boolean) => void,
 };
 
 export default function StreamSelector(props: StreamSelectorProps) {
     const {
-        open,
-        onClose,
         streams,
         screenshotTimestamp,
         onStreamRequested,
         currentStream,
-        onMouseOver = () => {},
-        onMouseOut = () => {},
-        startStreamWhenAvailable = true,
-        setStartStreamWhenAvailable = (ignore) => {},
     } = props;
 
-    const [selection, setSelection] = useState<StreamSelectionRequest>(NO_SELECTION);
+    const [selection, setSelection] = useState<StreamSelectionRequest|null>(null);
 
-    useEffect(() => { onStreamRequested(selection); }, [selection]);
+    useEffect(() => { 
+        if (selection !== null) {
+            onStreamRequested(selection);
+        } 
+    }, [selection]);
 
     function selectStream(stream: string, protocol: StreamProtocol|null) {
         var newSelection: StreamSelectionRequest;
@@ -110,34 +100,16 @@ export default function StreamSelector(props: StreamSelectorProps) {
         });
     } 
 
-    return (
-        <Drawer
-            open={open}
-            onClose={onClose}
-            anchor="top"
+    return (    
+        <Box 
+            sx={{
+                p: 1, 
+                width: '100%',
+                flexGrow: 1,
+                display: 'flex'
+            }}
         >
-            <Box
-                onMouseOver={onMouseOver}
-                onMouseOut={onMouseOut}
-            >
-                <Box 
-                    sx={{
-                        p: 1, 
-                        width: '100%',
-                        flexGrow: 1,
-                        display: 'flex'
-                    }}
-                >
-                    {content}
-                </Box>
-                <Box sx={{paddingLeft: 2, paddingRight: 2}} display="flex" justifyContent="flex-end">
-                    <FormGroup>
-                        <FormControlLabel control={
-                            <Checkbox checked={startStreamWhenAvailable} onChange={() => setStartStreamWhenAvailable(!startStreamWhenAvailable)} />
-                        } label="Doe maar een streampie. Als het beweegt wil ik het zien." />
-                    </FormGroup>
-                </Box>
-            </Box>
-        </Drawer>
+            {content}
+        </Box>
     );
 }

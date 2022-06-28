@@ -1,11 +1,16 @@
 import './App.css';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { StreamProtocol } from './BamApi';
 import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, StreamManager, StreamSelection } from './StreamManager';
+import Drawer from '@mui/material/Drawer';
+import Box from '@mui/material/Box';
+import FormGroup from '@mui/material/FormGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
@@ -23,15 +28,15 @@ function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): Oven
 }
 
 export default function App() {
-  const [streamSelectorOpen, setStreamSelectorOpen] = useState<boolean>(false);
   const [availableStreamUpdate, setAvailableStreamUpdate] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [sourcesList, setSourcesList] = useState<OvenPlayerSource[]>([]);
-  const [mouseOnStreamSelector, setMouseOnStreamSelector] = useState<boolean>(false);
+  const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
   const { enqueueSnackbar, } = useSnackbar();
 
-  useEffect(() => {setImmediate(() => {setStreamSelectorOpen(true);});}, []);
+  useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
 
   useEffect(() => {
     STREAM_MANAGER.setAvailableStreamListener(setAvailableStreamUpdate);
@@ -50,13 +55,13 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!mouseOnStreamSelector && selectedStream !== null) {
-      setStreamSelectorOpen(false);
+    if (!mouseOnDrawer && selectedStream !== null) {
+      setDrawerOpen(false);
     }
-    else if (mouseOnStreamSelector) {
-      setStreamSelectorOpen(true);
+    else if (mouseOnDrawer) {
+      setDrawerOpen(true);
     }
-  }, [mouseOnStreamSelector, selectedStream])
+  }, [mouseOnDrawer, selectedStream])
 
   useEffect(() => {
     console.log("new state", playerState);
@@ -77,20 +82,32 @@ export default function App() {
       />
       <div 
         className="invisible-menu-opener"
-        onMouseOver={() => {setMouseOnStreamSelector(true);}}
+        onMouseOver={() => {setMouseOnDrawer(true);}}
       ></div>
-      <StreamSelector 
-        open={streamSelectorOpen} 
-        onClose={() => {setMouseOnStreamSelector(false);}} 
-        onStreamRequested={(selection) => STREAM_MANAGER.requestStreamSelection(selection)}
-        streams={availableStreamUpdate.streamMap}
-        screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
-        currentStream={selectedStream}
-        onMouseOver={() => {setMouseOnStreamSelector(true);}}
-        onMouseOut={() => {setMouseOnStreamSelector(false);}}
-        startStreamWhenAvailable={STREAM_MANAGER.autoStart}
-        setStartStreamWhenAvailable={(newVal) => {STREAM_MANAGER.autoStart = newVal;}}
-      />
+      <Drawer
+        open={drawerOpen}
+        onClose={() => {setMouseOnDrawer(false);}}
+        anchor="top"
+      >
+        <Box
+            onMouseOver={() => {setMouseOnDrawer(true);}}
+            onMouseOut={() => {setMouseOnDrawer(false);}}
+        >
+          <StreamSelector 
+            onStreamRequested={(selection) => STREAM_MANAGER.requestStreamSelection(selection)}
+            streams={availableStreamUpdate.streamMap}
+            screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
+            currentStream={selectedStream}
+          />
+          <Box sx={{paddingLeft: 2, paddingRight: 2}} display="flex" justifyContent="flex-end">
+            <FormGroup>
+              <FormControlLabel control={
+                <Checkbox checked={STREAM_MANAGER.autoStart} onChange={() => {STREAM_MANAGER.autoStart = !STREAM_MANAGER.autoStart;}} />
+              } label="Doe maar een streampie. Als het beweegt wil ik het zien." />
+              </FormGroup>
+          </Box>
+        </Box>
+      </Drawer>
     </div>
   );
 }
