@@ -1,7 +1,7 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, Theme } from '@mui/material/styles';
 
 // A custom theme for this app
-const theme = createTheme({
+const theme: Theme = createTheme({
   palette: {
     mode: 'dark',
   },

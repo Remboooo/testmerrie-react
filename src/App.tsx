@@ -88,6 +88,8 @@ export default function App() {
         currentStream={selectedStream}
         onMouseOver={() => {setMouseOnStreamSelector(true);}}
         onMouseOut={() => {setMouseOnStreamSelector(false);}}
+        startStreamWhenAvailable={STREAM_MANAGER.autoStart}
+        setStartStreamWhenAvailable={(newVal) => {STREAM_MANAGER.autoStart = newVal;}}
       />
     </div>
   );

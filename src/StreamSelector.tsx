@@ -4,10 +4,12 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Drawer from '@mui/material/Drawer';
 import { StreamMap, StreamProtocol } from './BamApi';
-import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia } from '@mui/material';
+import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia, Checkbox, FormControlLabel, makeStyles } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import FormGroup from '@mui/material/FormGroup';
+import theme from './theme';
 
 export type StreamSelectorProps = {
     open: boolean,
@@ -18,6 +20,8 @@ export type StreamSelectorProps = {
     currentStream: StreamSelection,
     onMouseOver?: React.MouseEventHandler<HTMLDivElement>,
     onMouseOut?: React.MouseEventHandler<HTMLDivElement>,
+    startStreamWhenAvailable?: boolean,
+    setStartStreamWhenAvailable?: (startStreamWhenAvailable: boolean) => void,
 };
 
 export default function StreamSelector(props: StreamSelectorProps) {
@@ -30,6 +34,8 @@ export default function StreamSelector(props: StreamSelectorProps) {
         currentStream,
         onMouseOver = () => {},
         onMouseOut = () => {},
+        startStreamWhenAvailable = true,
+        setStartStreamWhenAvailable = (ignore) => {},
     } = props;
 
     const [selection, setSelection] = useState<StreamSelectionRequest>(NO_SELECTION);
@@ -68,7 +74,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
             return (
                 <Card 
                     key={key} 
-                    sx={{ maxWidth: 345 }}
+                    sx={{ maxWidth: 345, margin: theme.spacing(1) }}
                     className={isSelected ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
@@ -110,12 +116,27 @@ export default function StreamSelector(props: StreamSelectorProps) {
             onClose={onClose}
             anchor="top"
         >
-            <Box 
-                sx={{p: 1}}
+            <Box
                 onMouseOver={onMouseOver}
                 onMouseOut={onMouseOut}
             >
-                {content}
+                <Box 
+                    sx={{
+                        p: 1, 
+                        width: '100%',
+                        flexGrow: 1,
+                        display: 'flex'
+                    }}
+                >
+                    {content}
+                </Box>
+                <Box sx={{paddingLeft: 2, paddingRight: 2}} display="flex" justifyContent="flex-end">
+                    <FormGroup>
+                        <FormControlLabel control={
+                            <Checkbox checked={startStreamWhenAvailable} onChange={() => setStartStreamWhenAvailable(!startStreamWhenAvailable)} />
+                        } label="Doe maar een streampie. Als het beweegt wil ik het zien." />
+                    </FormGroup>
+                </Box>
             </Box>
         </Drawer>
     );

@@ -2,6 +2,9 @@ import OvenPlayer from 'ovenplayer'
 
 import React, { createRef, useEffect, useState } from 'react';
 
+// message box with errors div class = op-message-box
+// error text div class = op-message-text
+
 type OvenPlayerInstance = ReturnType<typeof OvenPlayer.create>;
 export type OvenPlayerConfig = Parameters<typeof OvenPlayer.create>[1];
 export type OvenPlayerState = "idle"|"complete"|"paused"|"playing"|"error"|"loading"|"stalled"|"adLoaded"|"adPlaying"|"adPaused"|"adComplete";

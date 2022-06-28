@@ -31,6 +31,7 @@ export class StreamManager {
     selectedStream: StreamSelection = null;
     availableStreamListener: AvailableStreamListener = (update) => {};
     selectedStreamListener: SelectedStreamListener = (selection) => {};
+    private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
   
     constructor() {
         this.startUpdates();
@@ -41,7 +42,18 @@ export class StreamManager {
             this.refreshTimestamp = Date.now();
             this.availableStreams = streams;
             this.availableStreamListener({streamMap: streams, refreshTimestamp: this.refreshTimestamp});
+            this.checkAutoStart();
         });
+    }
+
+    checkAutoStart() {
+        if (this._autoStart) {
+            const streamEntries = Object.entries(this.availableStreams);
+            if (this.selectedStream === null && streamEntries.length > 0) {
+                this.selectedStream = {key: streamEntries[0][0], stream: streamEntries[0][1], protocol: DEFAULT_PROTOCOL};
+                this.selectedStreamListener(this.selectedStream);
+            }
+        }
     }
   
     startUpdates() {
@@ -95,5 +107,14 @@ export class StreamManager {
 
     isStreamAvailable(key: string): boolean {
         return key in this.availableStreams;
+    }
+
+    get autoStart(): boolean {
+        return this._autoStart;
+    }
+
+    set autoStart(newVal: boolean) {
+        localStorage.setItem('autoStart', newVal ? '1' : '0');
+        this._autoStart = newVal;
     }
   }
