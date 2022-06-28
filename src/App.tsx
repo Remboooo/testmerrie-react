@@ -14,6 +14,7 @@ import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
 import { VolumeDown, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
+import Divider from '@mui/material/Divider';
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
@@ -105,16 +106,20 @@ export default function App() {
             screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
             currentStream={selectedStream}
           />
-          <Stack spacing={2} direction="row" sx={{ mb: 1, paddingLeft: 2, paddingRight: 2 }} alignItems="center">
-            <VolumeDown />
-            <Slider sx={{width: '10em'}} aria-label="Volume" value={volume} onChange={(event, newValue, something) => {setVolume(newValue as number);}} />
-            <VolumeUp />
+          <Stack spacing={2} direction="row" sx={{ padding: 2 }} alignItems="center">
             <Box sx={{flexGrow: 1}}></Box>
             <FormGroup>
               <FormControlLabel control={
                 <Checkbox checked={STREAM_MANAGER.autoStart} onChange={() => {STREAM_MANAGER.autoStart = !STREAM_MANAGER.autoStart;}} />
               } label="Doe maar een streampie. Als het beweegt wil ik het zien." />
             </FormGroup>
+          </Stack>
+          <Divider />
+          <Stack spacing={2} direction="row" sx={{ padding: 2 }} alignItems="center">
+            <VolumeDown />
+            <Slider sx={{width: '10em'}} aria-label="Volume" value={volume} onChange={(event, newValue, something) => {setVolume(newValue as number);}} />
+            <VolumeUp />
+            <Box sx={{flexGrow: 1}}></Box>
           </Stack>
         </Box>
       </Drawer>
