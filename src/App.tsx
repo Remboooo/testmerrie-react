@@ -11,6 +11,9 @@ import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
+import Stack from '@mui/material/Stack';
+import { VolumeDown, VolumeUp } from '@mui/icons-material';
+import Slider from '@mui/material/Slider';
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
@@ -34,9 +37,12 @@ export default function App() {
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
+  const [volume, setVolume] = useState<number>(() => {const vol = localStorage.getItem("volume"); return vol === null ? 100 : parseInt(vol);});
   const { enqueueSnackbar, } = useSnackbar();
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
+
+  useEffect(() => {localStorage.setItem("volume", '' + volume);}, [volume]);
 
   useEffect(() => {
     STREAM_MANAGER.setAvailableStreamListener(setAvailableStreamUpdate);
@@ -78,7 +84,7 @@ export default function App() {
         onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
         sources={sourcesList}
         playerOptions={{autoStart: true, controls: false}}
-        volume={100}
+        volume={volume}
       />
       <div 
         className="invisible-menu-opener"
@@ -99,13 +105,17 @@ export default function App() {
             screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
             currentStream={selectedStream}
           />
-          <Box sx={{paddingLeft: 2, paddingRight: 2}} display="flex" justifyContent="flex-end">
+          <Stack spacing={2} direction="row" sx={{ mb: 1, paddingLeft: 2, paddingRight: 2 }} alignItems="center">
+            <VolumeDown />
+            <Slider sx={{width: '10em'}} aria-label="Volume" value={volume} onChange={(event, newValue, something) => {setVolume(newValue as number);}} />
+            <VolumeUp />
+            <Box sx={{flexGrow: 1}}></Box>
             <FormGroup>
               <FormControlLabel control={
                 <Checkbox checked={STREAM_MANAGER.autoStart} onChange={() => {STREAM_MANAGER.autoStart = !STREAM_MANAGER.autoStart;}} />
               } label="Doe maar een streampie. Als het beweegt wil ik het zien." />
-              </FormGroup>
-          </Box>
+            </FormGroup>
+          </Stack>
         </Box>
       </Drawer>
     </div>
