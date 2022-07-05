@@ -97,7 +97,15 @@ export default function App() {
       >
         <img src={tuinfeest} className="waiting-icon" alt="waiting" />
       </div>
+      <div 
+        className="error-overlay"
+      >
+        Er gaat iets niet goed 😞<br />
+        Misschien is de stream gestopt, misschien gaat er gewoon iets mis.<br />
+        Probeer anders eens een ander protocol?
+      </div>
       <Drawer
+        className="drawer"
         open={drawerOpen}
         onClose={() => {setMouseOnDrawer(false);}}
         anchor="top"
