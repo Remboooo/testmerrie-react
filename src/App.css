@@ -104,3 +104,7 @@ div.state-overlay {
   background-color: #666;
   box-shadow: 0px 0px 50px 5px #999;
 } */
+
+.op-ui {
+  visibility: hidden;
+}
