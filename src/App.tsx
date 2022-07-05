@@ -15,6 +15,7 @@ import Stack from '@mui/material/Stack';
 import { VolumeDown, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
+import tuinfeest from './tuinfeest.svg';
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
@@ -91,6 +92,11 @@ export default function App() {
         className="invisible-menu-opener"
         onMouseOver={() => {setMouseOnDrawer(true);}}
       ></div>
+      <div 
+        className="state-overlay"
+      >
+        <img src={tuinfeest} className="waiting-icon" alt="waiting" />
+      </div>
       <Drawer
         open={drawerOpen}
         onClose={() => {setMouseOnDrawer(false);}}
