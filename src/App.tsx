@@ -125,7 +125,7 @@ export default function App() {
             <FormGroup>
               <FormControlLabel control={
                 <Checkbox checked={STREAM_MANAGER.autoStart} onChange={() => {STREAM_MANAGER.autoStart = !STREAM_MANAGER.autoStart;}} />
-              } label="Doe maar een streampie. Als het beweegt wil ik het zien." />
+              } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
             </FormGroup>
           </Stack>
           <Divider />
