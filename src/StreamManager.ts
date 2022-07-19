@@ -31,7 +31,10 @@ export class StreamManager {
     selectedStream: StreamSelection = null;
     availableStreamListener: AvailableStreamListener = (update) => {};
     selectedStreamListener: SelectedStreamListener = (selection) => {};
-    private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
+    // This will not work because of autoplay restrictions:
+    // WebRTC.js:107 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
+    // private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
+    private _autoStart: boolean = false;
   
     constructor() {
         this.startUpdates();
@@ -116,5 +119,8 @@ export class StreamManager {
     set autoStart(newVal: boolean) {
         localStorage.setItem('autoStart', newVal ? '1' : '0');
         this._autoStart = newVal;
+        if (newVal) {
+            this.checkAutoStart();
+        }
     }
   }
