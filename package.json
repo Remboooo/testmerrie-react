@@ -16,11 +16,12 @@
     "@types/node": "^18.0.0",
     "@types/react": "^18.0.14",
     "@types/react-dom": "^18.0.5",
+    "discord-oauth2": "^2.10.0",
     "notistack": "^2.0.5",
     "ovenplayer": "^0.10.21",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "^5.0.1",
+    "react-scripts": "^4.0.2",
     "typeface-roboto": "^1.1.13",
     "typescript": "^4.7.4",
     "web-vitals": "^2.1.4"
