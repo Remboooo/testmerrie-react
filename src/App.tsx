@@ -3,7 +3,7 @@ import './App.css';
 import { useEffect, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
-import { StreamProtocol } from './BamApi';
+import { getUserInfo, StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, StreamManager, StreamSelection } from './StreamManager';
 import Drawer from '@mui/material/Drawer';
@@ -40,6 +40,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
   const [volume, setVolume] = useState<number>(() => {const vol = localStorage.getItem("volume"); return vol === null ? 100 : parseInt(vol);});
+  const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
@@ -57,6 +58,10 @@ export default function App() {
   useEffect(() => {
     setSourcesList(streamSelectionToOvenPlayerSourceList(selectedStream));
   }, [selectedStream, setSourcesList]);
+
+  useEffect(() => {
+    getUserInfo().then((userInfo) => setUserInfo(userInfo));
+  }, [])
 
   function tryRestartAfterError() {
     // TODO
@@ -121,6 +126,7 @@ export default function App() {
             currentStream={selectedStream}
           />
           <Stack spacing={2} direction="row" sx={{ padding: 2 }} alignItems="center">
+            <div>Hello {userInfo?.user.username} 👋</div>
             <Box sx={{flexGrow: 1}}></Box>
             <FormGroup>
               <FormControlLabel control={

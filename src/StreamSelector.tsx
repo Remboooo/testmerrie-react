@@ -44,7 +44,12 @@ export default function StreamSelector(props: StreamSelectorProps) {
     }
 
     var content;
-    if (Object.entries(streams).length === 0) {
+    if (streams === undefined) {
+        content = <Box className="waiting-box">
+            <Typography variant="body1">Er gaat iets mis, ik kon de streams niet ophalen 😞</Typography>
+        </Box>
+    }
+    else if (Object.entries(streams).length === 0) {
         content = <Box className="waiting-box">
             <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="waiting" /><br />
             <Typography variant="body1">Je moet nog even iemand schoppen om te gaan streamen.</Typography>

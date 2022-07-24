@@ -1,4 +1,26 @@
-const API_BASE = "https://bam.bad-bit.net/api/v1"
+import Crypto from 'crypto';
+import OAuth from 'discord-oauth2';
+import config from './config';
+
+const API_BASE = config.bam.uri + "/v1";
+
+type DiscordAccess = {
+  accessToken: string,
+  scope: string,
+  tokenType: string,
+  expireTime: Date
+};
+
+let AUTH: DiscordAccess|undefined = ((v)=>{ 
+    return v == null ? undefined : JSON.parse(v) as DiscordAccess
+})(localStorage.getItem("discord-oauth2"));
+
+console.log("AUTH =", AUTH);
+
+const oauth = new OAuth({
+  clientId: config.discord.clientId,
+  redirectUri: config.discord.redirectUri,
+});
 
 export type VideoStreamParams = {
     width: number,
@@ -50,9 +72,81 @@ export type StreamResponse = {
 
 export async function getStreams(): Promise<StreamMap> {
     try {
-        return (await fetch(API_BASE + "/streams")).json().then(j => j.streams);
+        return (await fetch(API_BASE + "/streams", {headers: getHeaders()})).json().then(j => j.streams);
     } catch (error) {
         console.log(error);
         return {};
+    }
+}
+
+export type UserInfo = {
+    user: OAuth.User,
+    member_of: Record<string, OAuth.Member>,
+};
+
+export async function getUserInfo(): Promise<UserInfo> {
+    return (await fetch(API_BASE + "/auth", {headers: getHeaders()})).json();
+}
+
+function getHeaders() {
+    if (AUTH !== undefined) {
+        const header = {'Authorization': 'Bearer ' + AUTH.accessToken};
+        console.log("header = ", header);
+        return header;
+    } else {
+        return {};
+    }
+}
+
+function startAuth() {
+    var state = Crypto.randomBytes(16).toString("hex");
+    localStorage.setItem("discord-oauth2-state", state);
+    window.location.href = oauth.generateAuthUrl({
+        scope: ["identify", "guilds", "guilds.members.read"],
+        state: state,
+        responseType: "token",
+    });
+}
+
+function handleAuthCallback(): DiscordAccess|undefined {
+    const urlParams = new URLSearchParams(window.location.search || window.location.hash.substring(1));
+    console.log(urlParams);
+
+    const tokenType = urlParams.get("token_type");
+    const accessToken = urlParams.get("access_token");
+    const expiresIn = urlParams.get("expires_in");
+    const scope = urlParams.get("scope");
+    const state = urlParams.get("state");
+    const error = urlParams.get("error");
+
+    var expectedState = localStorage.getItem("discord-oauth2-state");
+    localStorage.removeItem("discord-oauth2-state");
+    if (state === expectedState) {
+        if (accessToken && expiresIn && tokenType && scope) {
+            var expireTime = new Date();
+            expireTime.setSeconds(expireTime.getSeconds() + parseInt(expiresIn));
+            var auth = { accessToken, expireTime, scope, tokenType };
+            localStorage.setItem("discord-oauth2", JSON.stringify(auth));
+            return auth;
+        }
+        else if (error) {
+            throw urlParams.get("error_description");
+        }
+    } else {
+        console.error("Stored state and auth callback state mismatch");
+    }
+    return undefined;
+}  
+
+export function authenticate() {
+    let expiredTime = (()=>{let d = new Date(); d.setHours(d.getHours() - 1); return d;})();
+
+    if (window.location.pathname == "/authcallback") {
+        AUTH = handleAuthCallback();
+        window.history.pushState(null, "", "/");
+    }
+
+    if (AUTH === undefined || AUTH.expireTime <= expiredTime) {
+        startAuth(); // this will not return, but redirect away to Discord
     }
 }
