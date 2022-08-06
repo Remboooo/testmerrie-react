@@ -28,9 +28,9 @@ export default (process.env.NODE_ENV == 'development') ?
 {
     discord: {
         clientId: "1000107540442513568",
-        redirectUri: "https://bam2.bad-bit.net/authcallback",
+        redirectUri: "https://testmerrie.nl/authcallback",
     },
     bam: {
-        uri: "https://bam.bad-bit.net/api"
+        uri: "https://testmerrie.nl/api"
     }
 };

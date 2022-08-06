@@ -1,3 +1,4 @@
+import { useSnackbar } from "notistack";
 import { getStreams, StreamMap, StreamProtocol, StreamSpec } from "./BamApi";
 
 const UPDATE_INTERVAL = 5000;
@@ -46,6 +47,8 @@ export class StreamManager {
             this.availableStreams = streams;
             this.availableStreamListener({streamMap: streams, refreshTimestamp: this.refreshTimestamp});
             this.checkAutoStart();
+        }).catch(reason => {
+            console.log(reason);
         });
     }
 
@@ -90,8 +93,6 @@ export class StreamManager {
     }
 
     requestStreamSelection(request: StreamSelectionRequest) {
-        console.log("Requested stream", request);
-        console.log("Available streams", this.availableStreams);
         if (request.key === null || !(request.key in this.availableStreams)) {
             this.selectedStream = null;
         } else {
@@ -104,7 +105,6 @@ export class StreamManager {
             }
             this.selectedStream = {key: request.key, stream: stream, protocol: protocol};
         }
-        console.log("Assigned stream", this.selectedStream);
         this.selectedStreamListener(this.selectedStream);
     }
 

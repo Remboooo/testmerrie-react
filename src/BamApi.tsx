@@ -15,8 +15,6 @@ let AUTH: DiscordAccess|undefined = ((v)=>{
     return v == null ? undefined : JSON.parse(v) as DiscordAccess
 })(localStorage.getItem("discord-oauth2"));
 
-console.log("AUTH =", AUTH);
-
 const oauth = new OAuth({
   clientId: config.discord.clientId,
   redirectUri: config.discord.redirectUri,
@@ -71,12 +69,7 @@ export type StreamResponse = {
 };
 
 export async function getStreams(): Promise<StreamMap> {
-    try {
-        return (await fetch(API_BASE + "/streams", {headers: getHeaders()})).json().then(j => j.streams);
-    } catch (error) {
-        console.log(error);
-        return {};
-    }
+    return (await fetch(API_BASE + "/streams", {headers: getHeaders()})).json().then(j => j.streams);
 }
 
 export type UserInfo = {
@@ -84,21 +77,20 @@ export type UserInfo = {
     member_of: Record<string, OAuth.Member>,
 };
 
-export async function getUserInfo(): Promise<UserInfo> {
+export async function getUserInfo(): Promise<UserInfo|undefined> {
     return (await fetch(API_BASE + "/auth", {headers: getHeaders()})).json();
 }
 
 function getHeaders() {
     if (AUTH !== undefined) {
         const header = {'Authorization': 'Bearer ' + AUTH.accessToken};
-        console.log("header = ", header);
         return header;
     } else {
         return {};
     }
 }
 
-function startAuth() {
+export function startAuthentication() {
     var state = Crypto.randomBytes(16).toString("hex");
     localStorage.setItem("discord-oauth2-state", state);
     window.location.href = oauth.generateAuthUrl({
@@ -110,7 +102,6 @@ function startAuth() {
 
 function handleAuthCallback(): DiscordAccess|undefined {
     const urlParams = new URLSearchParams(window.location.search || window.location.hash.substring(1));
-    console.log(urlParams);
 
     const tokenType = urlParams.get("token_type");
     const accessToken = urlParams.get("access_token");
@@ -138,7 +129,7 @@ function handleAuthCallback(): DiscordAccess|undefined {
     return undefined;
 }  
 
-export function authenticate() {
+export function checkAuthentication() {
     let expiredTime = (()=>{let d = new Date(); d.setHours(d.getHours() - 1); return d;})();
 
     if (window.location.pathname == "/authcallback") {
@@ -146,7 +137,11 @@ export function authenticate() {
         window.history.pushState(null, "", "/");
     }
 
-    if (AUTH === undefined || AUTH.expireTime <= expiredTime) {
-        startAuth(); // this will not return, but redirect away to Discord
-    }
+    return !(AUTH === undefined || AUTH.expireTime <= expiredTime);
+}
+
+export function discardAuthentication() {
+    AUTH = undefined;
+    localStorage.removeItem("discord-oauth2");
+    localStorage.removeItem("discord-oauth2-state");
 }

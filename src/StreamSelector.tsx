@@ -39,7 +39,6 @@ export default function StreamSelector(props: StreamSelectorProps) {
         } else {
             newSelection = {key: stream, protocol: protocol};
         }
-        console.log("New selection", newSelection);
         setSelection(newSelection);
     }
 
@@ -62,7 +61,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                 media = (<CardMedia
                     component="img"
                     height="140"
-                    src={props.thumbnail + "?" + screenshotTimestamp}
+                    src={props.thumbnail + "&" + screenshotTimestamp}
                 />);
             }
             const isSelected = currentStream?.key === key;
