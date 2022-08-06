@@ -52,6 +52,7 @@ export type OvenPlayerProps = {
     playerRef: (player: OvenPlayerInstance) => void,
     sources: OvenPlayerSource[],
     volume: number,
+    muted: boolean,
 };
 
 export default function OvenPlayerComponent({
@@ -87,6 +88,7 @@ export default function OvenPlayerComponent({
         playerRef = (instance: OvenPlayerInstance) => {},
         sources = [],
         volume = 100,
+        muted = false,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = createRef<HTMLDivElement>();
     let [player, setPlayer] = useState<OvenPlayerInstance|null>(null);
@@ -165,8 +167,9 @@ export default function OvenPlayerComponent({
     useEffect(() => {
         if (player) {
             player.setVolume(volume);
+            player.setMute(muted);
         }
-    }, [player, volume]);
+    }, [player, volume, muted]);
 
     return(
         <div 

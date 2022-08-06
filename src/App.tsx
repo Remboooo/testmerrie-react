@@ -1,6 +1,6 @@
 import './App.css';
 
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { getUserInfo, StreamProtocol, UserInfo } from './BamApi';
@@ -12,7 +12,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { VolumeDown, VolumeUp } from '@mui/icons-material';
+import { VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -39,7 +39,8 @@ export default function App() {
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
-  const [volume, setVolume] = useState<number>(() => {const vol = localStorage.getItem("volume"); return vol === null ? 100 : parseInt(vol);});
+  const [muted, setMuted] = useState<boolean>(() => {const v = localStorage.getItem("muted"); return v === "true";});
+  const [volume, setVolume] = useState<number>(() => {const v = localStorage.getItem("volume"); return v === null ? 100 : parseInt(v);});
   const [streamManager, setStreamManager] = useState<StreamManager|undefined>();
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [logout, setLogout] = useState<() => void>();
@@ -50,6 +51,8 @@ export default function App() {
   useEffect(() => {if (authenticated && !streamManager) {setStreamManager(new StreamManager())}}, [authenticated]);
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
+
+  useEffect(() => {localStorage.setItem("muted", '' + muted);}, [muted]);
 
   useEffect(() => {localStorage.setItem("volume", '' + volume);}, [volume]);
 
@@ -108,6 +111,7 @@ export default function App() {
           sources={sourcesList}
           playerOptions={{autoStart: true, controls: false}}
           volume={volume}
+          muted={muted}
         />
         <div 
           className="invisible-menu-opener"
@@ -155,8 +159,14 @@ export default function App() {
             </Stack>
             <Divider />
             <Stack spacing={2} direction="row" sx={{ padding: 2 }} alignItems="center">
+              <Checkbox
+                onClick={() => setMuted(!muted)}
+                checked={muted}
+                icon={<VolumeOffOutlined />}
+                checkedIcon={<VolumeOff />}
+              />
               <VolumeDown />
-              <Slider sx={{width: '10em'}} aria-label="Volume" value={volume} onChange={(event, newValue, something) => {setVolume(newValue as number);}} />
+              <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
               <VolumeUp />
               <Box sx={{flexGrow: 1}}></Box>
             </Stack>
