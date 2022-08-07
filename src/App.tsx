@@ -1,6 +1,6 @@
 import './App.css';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { getUserInfo, StreamProtocol, UserInfo } from './BamApi';
@@ -91,7 +91,12 @@ export default function App() {
   }
 
   function toggleFullscreen() {
-    // TODO
+    if (window.document.fullscreenElement) {
+      window.document.exitFullscreen();
+    } else {
+      console.log("go fullscreen");
+      window.document.getElementsByTagName("body")[0].requestFullscreen();
+    }
   }
 
   function tryRestartAfterError() {
@@ -111,6 +116,8 @@ export default function App() {
       setTimeout(tryRestartAfterError, 1000);
     }
   }, [playerState]);
+
+  useEffect(() => {console.log("drawer", drawerOpen)}, [drawerOpen]);
 
   return (
     <div className={"App " + playerState}>
@@ -155,6 +162,7 @@ export default function App() {
           open={drawerOpen}
           onClose={() => {setMouseOnDrawer(false);}}
           onMouseMove={() => {mouseOnVideoAction()}}
+          onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
           anchor="top"
         >
           <Box
