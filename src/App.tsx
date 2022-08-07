@@ -19,6 +19,8 @@ import tuinfeest from './tuinfeest.svg';
 import DiscordAuth from './DiscordAuth';
 import Button from '@mui/material/Button';
 
+const MOUSE_ON_VIDEO_TIMEOUT = 1000;
+
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
   "webrtc-udp": "webrtc",
@@ -44,6 +46,9 @@ export default function App() {
   const [streamManager, setStreamManager] = useState<StreamManager|undefined>();
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [logout, setLogout] = useState<() => void>();
+
+  const [mouseActiveOnVideo, setMouseActiveOnVideo] = useState<boolean>(false);
+  const [mouseOnVideoTimeout, setMouseOnVideoTimeout] = useState<ReturnType<typeof setTimeout>|undefined>();
 
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
@@ -77,18 +82,27 @@ export default function App() {
     }
   }, [authenticated]);
 
+  function mouseOnVideoAction() {
+    if (mouseOnVideoTimeout !== undefined) {
+      clearTimeout(mouseOnVideoTimeout);
+    }
+    setMouseActiveOnVideo(true);
+    setMouseOnVideoTimeout(setTimeout(() => setMouseActiveOnVideo(false), MOUSE_ON_VIDEO_TIMEOUT));
+  }
+
+  function toggleFullscreen() {
+    // TODO
+  }
+
   function tryRestartAfterError() {
     // TODO
   }
 
   useEffect(() => {
-    if (!mouseOnDrawer && selectedStream !== null) {
-      setDrawerOpen(false);
-    }
-    else if (mouseOnDrawer) {
-      setDrawerOpen(true);
-    }
-  }, [mouseOnDrawer, selectedStream])
+    const userWantsDrawer = mouseOnDrawer || mouseActiveOnVideo;
+    const userNeedsDrawer = selectedStream === null;
+    setDrawerOpen(userWantsDrawer || userNeedsDrawer);
+  }, [mouseActiveOnVideo, mouseOnDrawer, selectedStream])
 
   useEffect(() => {
     console.log("new state", playerState);
@@ -115,7 +129,14 @@ export default function App() {
         />
         <div 
           className="invisible-menu-opener"
-          onMouseOver={() => {setMouseOnDrawer(true);}}
+          onMouseMove={() => {mouseOnVideoAction()}}
+          onClick={(event) => {
+            if (event.detail == 1) { 
+              setDrawerOpen(true);
+            } else if (event.detail == 2) {
+              toggleFullscreen();
+            }
+          }}
         ></div>
         <div 
           className="state-overlay"
@@ -133,6 +154,7 @@ export default function App() {
           className="drawer"
           open={drawerOpen}
           onClose={() => {setMouseOnDrawer(false);}}
+          onMouseMove={() => {mouseOnVideoAction()}}
           anchor="top"
         >
           <Box
