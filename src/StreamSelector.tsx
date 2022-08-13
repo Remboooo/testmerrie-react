@@ -24,22 +24,15 @@ export default function StreamSelector(props: StreamSelectorProps) {
         currentStream,
     } = props;
 
-    const [selection, setSelection] = useState<StreamSelectionRequest|null>(null);
-
-    useEffect(() => { 
-        if (selection !== null) {
-            onStreamRequested(selection);
-        } 
-    }, [selection]);
-
-    function selectStream(stream: string, protocol: StreamProtocol|null) {
+    function selectStream(stream: string|null, protocol: StreamProtocol|null) {
         var newSelection: StreamSelectionRequest;
-        if (stream === selection?.key && (protocol === selection?.protocol || protocol === null)) {
+        console.log(stream, protocol, currentStream);
+        if (stream === null || (stream == currentStream?.key && (protocol == currentStream?.protocol || protocol === null))) {
             newSelection = NO_SELECTION;
         } else {
             newSelection = {key: stream, protocol: protocol};
         }
-        setSelection(newSelection);
+        onStreamRequested(newSelection);
     }
 
     var content;
@@ -72,7 +65,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                     className={isSelected ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
-                        onClick={() => selectStream(key, null)}
+                        onClick={() => isSelected ? selectStream(null, null) : selectStream(key, null)}
                     >
                         {media}
                         <CardContent>

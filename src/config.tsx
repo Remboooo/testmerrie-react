@@ -21,7 +21,7 @@ export default (process.env.NODE_ENV == 'development') ?
         redirectUri: "http://localhost:3000/authcallback",
     },
     bam: {
-        uri: "http://localhost:8080"
+        uri: "https://testmerrie.nl/api"
     }
 } : 
 // PRODUCTION

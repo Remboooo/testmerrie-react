@@ -12,14 +12,14 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { Fullscreen, FullscreenExit, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
 import DiscordAuth from './DiscordAuth';
 import Button from '@mui/material/Button';
 
-const MOUSE_ON_VIDEO_TIMEOUT = 1000;
+const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
@@ -82,25 +82,28 @@ export default function App() {
     }
   }, [authenticated]);
 
+  /* Drawer open/close logic */
+
+  let tempMouseOnVideoTimeout: ReturnType<typeof setTimeout>|undefined = undefined;
+
   function mouseOnVideoAction() {
     if (mouseOnVideoTimeout !== undefined) {
       clearTimeout(mouseOnVideoTimeout);
     }
-    setMouseActiveOnVideo(true);
-    setMouseOnVideoTimeout(setTimeout(() => setMouseActiveOnVideo(false), MOUSE_ON_VIDEO_TIMEOUT));
-  }
-
-  function toggleFullscreen() {
-    if (window.document.fullscreenElement) {
-      window.document.exitFullscreen();
-    } else {
-      console.log("go fullscreen");
-      window.document.getElementsByTagName("body")[0].requestFullscreen();
+    if (tempMouseOnVideoTimeout !== undefined) {
+      clearTimeout(tempMouseOnVideoTimeout);
     }
+    setMouseActiveOnVideo(true);
+    setDrawerOpen(true);
+    tempMouseOnVideoTimeout = setTimeout(() => setMouseActiveOnVideo(false), MOUSE_ON_VIDEO_TIMEOUT);
+    setMouseOnVideoTimeout(tempMouseOnVideoTimeout);
   }
 
-  function tryRestartAfterError() {
-    // TODO
+  function openDrawerWithoutTimeout() {
+    if (tempMouseOnVideoTimeout !== undefined) {
+      clearTimeout(tempMouseOnVideoTimeout);
+    }
+    setDrawerOpen(true);
   }
 
   useEffect(() => {
@@ -109,6 +112,22 @@ export default function App() {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
   }, [mouseActiveOnVideo, mouseOnDrawer, selectedStream])
 
+  /* Fullscreen toggle logic */
+
+  function toggleFullscreen() {
+    if (window.document.fullscreenElement) {
+      window.document.exitFullscreen();
+    } else {
+      window.document.getElementsByTagName("body")[0].requestFullscreen();
+    }
+  }
+
+  function tryRestartAfterError() {
+    // TODO
+  }
+
+
+
   useEffect(() => {
     console.log("new state", playerState);
 
@@ -116,8 +135,6 @@ export default function App() {
       setTimeout(tryRestartAfterError, 1000);
     }
   }, [playerState]);
-
-  useEffect(() => {console.log("drawer", drawerOpen)}, [drawerOpen]);
 
   return (
     <div className={"App " + playerState}>
@@ -139,7 +156,7 @@ export default function App() {
           onMouseMove={() => {mouseOnVideoAction()}}
           onClick={(event) => {
             if (event.detail == 1) { 
-              setDrawerOpen(true);
+              openDrawerWithoutTimeout();
             } else if (event.detail == 2) {
               toggleFullscreen();
             }
@@ -161,8 +178,9 @@ export default function App() {
           className="drawer"
           open={drawerOpen}
           onClose={() => {setMouseOnDrawer(false);}}
-          onMouseMove={() => {mouseOnVideoAction()}}
+          onMouseMove={() => mouseOnVideoAction()}
           onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
+          ModalProps={{ onBackdropClick: () => setDrawerOpen(false) }}
           anchor="top"
         >
           <Box
@@ -175,31 +193,39 @@ export default function App() {
               screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
               currentStream={selectedStream}
             />
-            <Stack spacing={2} direction="row" sx={{ padding: 2 }} alignItems="center">
-              {userInfo ? (
-                <div>Hello {userInfo?.user.username} 👋</div>
-              ) : ''}
-              <Button onClick={logout}>Uitloggen</Button>
-              <Box sx={{flexGrow: 1}}></Box>
-              <FormGroup>
-                <FormControlLabel control={
-                  <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
-                } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
-              </FormGroup>
-            </Stack>
+            <FormGroup sx={{margin: "0 1em"}}>
+              <FormControlLabel control={
+                <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
+              } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
+            </FormGroup>
             <Divider />
-            <Stack spacing={2} direction="row" sx={{ padding: 2 }} alignItems="center">
-              <Checkbox
-                onClick={() => setMuted(!muted)}
-                checked={muted}
-                icon={<VolumeOffOutlined />}
-                checkedIcon={<VolumeOff />}
-              />
-              <VolumeDown />
-              <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
-              <VolumeUp />
-              <Box sx={{flexGrow: 1}}></Box>
-            </Stack>
+            <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
+              <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                <Checkbox
+                  onClick={() => setMuted(!muted)}
+                  checked={muted}
+                  icon={<VolumeOffOutlined />}
+                  checkedIcon={<VolumeOff />}
+                />
+                <VolumeDown />
+                <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
+                <VolumeUp />
+                <Checkbox 
+                  onClick={() => toggleFullscreen()}
+                  checked={!!window.document.fullscreenElement}
+                  icon={<Fullscreen />} 
+                  checkedIcon={<FullscreenExit />}
+                />
+              </Stack>
+              <Box sx={{margin: "1em", display: 'inline-flex', justifyContent: 'center', alignItems: 'center'}}>
+                <Box sx={{flexGrow: 1}}>
+                  {userInfo ? (
+                    <div>Hello {userInfo?.user.username} 👋</div>
+                  ) : ''}
+                </Box>
+                <Button onClick={logout}>Uitloggen</Button>
+              </Box>
+            </Box>
           </Box>
         </Drawer>
       </DiscordAuth>

@@ -6,13 +6,14 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';
 import App from './App';
 import { SnackbarProvider } from 'notistack';
+import { Error, WarningOutlined } from '@mui/icons-material';
 
 const root = ReactDOM.createRoot(document.getElementById('root') as Element);
 root.render(
   // <React.StrictMode>
   <ThemeProvider theme={theme}>
     <CssBaseline />
-    <SnackbarProvider>
+    <SnackbarProvider iconVariant={{error: <Error sx={{margin: "0 .5em 0 0"}} />}}>
       <App />
     </SnackbarProvider>
   </ThemeProvider>
