@@ -86,13 +86,17 @@ export default function App() {
 
   let tempMouseOnVideoTimeout: ReturnType<typeof setTimeout>|undefined = undefined;
 
-  function mouseOnVideoAction() {
+  function clearMouseOnVideoTimeout() {
     if (mouseOnVideoTimeout !== undefined) {
       clearTimeout(mouseOnVideoTimeout);
     }
     if (tempMouseOnVideoTimeout !== undefined) {
       clearTimeout(tempMouseOnVideoTimeout);
     }
+  }
+
+  function mouseOnVideoAction() {
+    clearMouseOnVideoTimeout();
     setMouseActiveOnVideo(true);
     setDrawerOpen(true);
     tempMouseOnVideoTimeout = setTimeout(() => setMouseActiveOnVideo(false), MOUSE_ON_VIDEO_TIMEOUT);
@@ -100,9 +104,7 @@ export default function App() {
   }
 
   function openDrawerWithoutTimeout() {
-    if (tempMouseOnVideoTimeout !== undefined) {
-      clearTimeout(tempMouseOnVideoTimeout);
-    }
+    clearMouseOnVideoTimeout();
     setDrawerOpen(true);
   }
 

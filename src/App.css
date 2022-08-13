@@ -17,8 +17,9 @@ body {
 }
 
 .App.idle, .App.paused, .App.error {
-  background: url(poster.png) no-repeat center;
-  background-size: cover;
+  background: url(poster-notext.png) no-repeat bottom;
+  background-color: #000000;
+  background-size: 100% auto;
 }
 
 @media (max-aspect-ratio: 16/9) {
