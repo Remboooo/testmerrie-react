@@ -108,9 +108,10 @@ export default function App() {
     setDrawerOpen(true);
   }
 
+  const userWantsDrawer = mouseOnDrawer || mouseActiveOnVideo;
+  const userNeedsDrawer = selectedStream === null;
+
   useEffect(() => {
-    const userWantsDrawer = mouseOnDrawer || mouseActiveOnVideo;
-    const userNeedsDrawer = selectedStream === null;
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
   }, [mouseActiveOnVideo, mouseOnDrawer, selectedStream])
 
@@ -182,7 +183,7 @@ export default function App() {
           onClose={() => {setMouseOnDrawer(false);}}
           onMouseMove={() => mouseOnVideoAction()}
           onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
-          ModalProps={{ onBackdropClick: () => setDrawerOpen(false) }}
+          ModalProps={{ onBackdropClick: () => {if (!userNeedsDrawer) setDrawerOpen(false);} }}
           anchor="top"
         >
           <Box
