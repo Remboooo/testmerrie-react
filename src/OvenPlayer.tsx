@@ -159,6 +159,8 @@ export default function OvenPlayerComponent({
             if (sources.length !== 0) {
                 player.load(sources);
                 player.setCurrentSource(0);
+                player.setVolume(volume);
+                player.setMute(muted);
                 player.play();
             }
         }
