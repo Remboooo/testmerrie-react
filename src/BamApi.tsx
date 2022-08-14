@@ -78,7 +78,14 @@ export type UserInfo = {
 };
 
 export async function getUserInfo(): Promise<UserInfo|undefined> {
-    return (await fetch(API_BASE + "/auth", {headers: getHeaders()})).json();
+    return fetch(API_BASE + "/auth", {headers: getHeaders()}).then(async response => {
+        if (!response.ok) {
+            throw new Error((await response.json())["message"]);
+        }
+        else {
+            return response.json();
+        }
+    });
 }
 
 function getHeaders() {

@@ -1,6 +1,6 @@
 import './App.css';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { getUserInfo, StreamProtocol, UserInfo } from './BamApi';
@@ -18,6 +18,7 @@ import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
 import DiscordAuth from './DiscordAuth';
 import Button from '@mui/material/Button';
+import CastButton from './CastButton';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -72,15 +73,6 @@ export default function App() {
   useEffect(() => {
     setSourcesList(streamSelectionToOvenPlayerSourceList(selectedStream));
   }, [selectedStream, setSourcesList]);
-
-  useEffect(() => {
-    if (authenticated) {
-      getUserInfo().then((userInfo) => {if (userInfo) {setUserInfo(userInfo)}}).catch((reason) => {
-        console.log(reason);
-        enqueueSnackbar("Kon je niet aanmelden bij de server.. probably doet niks het. F5? Probeer anders even uit te loggen en opnieuw in te loggen.", {variant: 'error', preventDuplicate: true, persist: true});
-      });
-    }
-  }, [authenticated]);
 
   /* Drawer open/close logic */
 
@@ -142,7 +134,8 @@ export default function App() {
   return (
     <div className={"App " + playerState}>
       <DiscordAuth
-        setAuthenticated={(authenticated) => setAuthenticated(authenticated)}
+        setUserInfo={setUserInfo}
+        setAuthenticated={setAuthenticated}
         /* We have to wrap the logout function in another lambda because setLogout() produced by useState() treats any lambda as a lazy getter */
         setLogout={(logout) => setLogout(() => logout)}
       >
@@ -219,11 +212,12 @@ export default function App() {
                   icon={<Fullscreen />} 
                   checkedIcon={<FullscreenExit />}
                 />
+                <CastButton streamSelection={selectedStream} />
               </Stack>
               <Box sx={{margin: "1em", display: 'inline-flex', justifyContent: 'center', alignItems: 'center'}}>
                 <Box sx={{flexGrow: 1}}>
                   {userInfo ? (
-                    <div>Hello {userInfo?.user.username} 👋</div>
+                    <div>Hello {userInfo?.user?.username} 👋</div>
                   ) : ''}
                 </Box>
                 <Button onClick={logout}>Uitloggen</Button>

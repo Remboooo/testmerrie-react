@@ -23,7 +23,7 @@ export type AvailableStreamUpdate = {
 };
 
 export type AvailableStreamListener = (update: AvailableStreamUpdate) => void;
-export type SelectedStreamListener = (selection: StreamSelection|null) => void;
+export type SelectedStreamListener = (selection: StreamSelection) => void;
 
 export class StreamManager {
     scheduledUpdate: NodeJS.Timeout|null = null;

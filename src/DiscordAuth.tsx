@@ -1,28 +1,31 @@
-import { checkAuthentication, discardAuthentication, startAuthentication } from './BamApi';
+import { checkAuthentication, discardAuthentication, getUserInfo, startAuthentication, UserInfo } from './BamApi';
 import { Fragment, useEffect, useState } from "react";
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
-import { Button, DialogActions } from '@mui/material';
+import { Button, DialogActions, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 
 type DiscordAuthProps = {
+    setUserInfo?: (userInfo: UserInfo) => void;
     setAuthenticated?: (authenticated: boolean) => void;
     setLogout?: (logout: () => void) => void;
     children?: React.ReactNode;
 }
 
 export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
-    let [authenticated, setAuthenticated] = useState<boolean|undefined>(undefined);
-    let [authError, setAuthError] = useState<any>();
+    const [discordAuthenticated, setDiscordAuthenticated] = useState<boolean|undefined>(undefined);
+    const [discordAuthError, setDiscordAuthError] = useState<any>();
+    const [apiAuthError, setApiAuthError] = useState<any>();
+    const [userInfo, setUserInfo] = useState<UserInfo>();
     const { enqueueSnackbar, } = useSnackbar();
     
     useEffect(() => {
         try {
-            setAuthenticated(checkAuthentication());
+            setDiscordAuthenticated(checkAuthentication());
         } catch (authError) {
-            setAuthError(authError);
+            setDiscordAuthError(authError);
         }
     }, []);
 
@@ -37,27 +40,64 @@ export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
     }, []);
 
     useEffect(() => {
-        if (props.setAuthenticated !== undefined && authenticated !== undefined) {
-            props.setAuthenticated(authenticated);
+        if (props.setUserInfo && userInfo) {
+            props.setUserInfo(userInfo);
         }
-    }, [authenticated]);
+    }, [userInfo]);
 
     useEffect(() => {
-        if (authError) {
-            enqueueSnackbar("Discord zei: " + authError + " 😞", {variant: 'error', preventDuplicate: true, persist: true});
+        if (props.setAuthenticated !== undefined && discordAuthenticated !== undefined) {
+            props.setAuthenticated(!!(discordAuthenticated && userInfo));
         }
-    }, [authError]);
+        if (discordAuthenticated && !userInfo) {
+            getUserInfo().then(
+                (userInfo) => {setUserInfo(userInfo);}
+            ).catch((reason) => {
+                setApiAuthError(reason instanceof Error ? reason.message : reason);
+            })
+        }
+    }, [discordAuthenticated, userInfo]);
+
+    useEffect(() => {
+        if (discordAuthError) {
+            enqueueSnackbar("Discord zei: " + discordAuthError + " 😞", {variant: 'error', preventDuplicate: true, persist: true});
+        }
+    }, [discordAuthError]);
 
     const refuse = () => {
         window.location.href = "https://www.youtube.com/watch?v=2IXf3UAYvdM";
     }
     
-    if (authenticated === undefined) {
-        return <Fragment />;
+    if (apiAuthError || discordAuthError) {
+        return (
+            <Dialog
+                open={true}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+            <DialogTitle id="alert-dialog-title">
+                Hold up
+            </DialogTitle>
+            <DialogContent>
+                <DialogContentText id="alert-dialog-description">
+                    We kunnen niet verifiëren dat je een Cool Persoon™ bent... probeer even opnieuw in te loggen, en check of je het goeie account te pakken hebt.
+                </DialogContentText>
+                <DialogContentText variant="body2" sx={{paddingTop: "1em"}}>
+                    {apiAuthError ? "De server zei \"" + apiAuthError + "\"" : "Discord zei \"" + discordAuthError + "\""}
+                </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={refuse}>Nee.</Button>
+                <Button onClick={startAuthentication} autoFocus>
+                    Naar Discord!
+                </Button>
+                </DialogActions>
+            </Dialog>
+        );
     }
-    else if (authenticated) {
+    else if (discordAuthenticated && userInfo) {
         return <Fragment>{props.children}</Fragment>;
-    } else {
+    } else if (discordAuthenticated === false) {
         return (
             <Dialog
                 open={true}
@@ -81,5 +121,8 @@ export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
                 </DialogActions>
             </Dialog>
         );
+    } else {
+        // Stuff is loading; no error, but no auth either
+        return <Fragment />
     }
 }

@@ -22,7 +22,10 @@ export default (process.env.NODE_ENV == 'development') ?
     },
     bam: {
         uri: "https://testmerrie.nl/api"
-    }
+    },
+    chromecast: {
+        applicationId: "7D2C2565"
+    },
 } : 
 // PRODUCTION
 {
@@ -32,5 +35,8 @@ export default (process.env.NODE_ENV == 'development') ?
     },
     bam: {
         uri: "https://testmerrie.nl/api"
-    }
+    },
+    chromecast: {
+        applicationId: "7D2C2565"
+    },
 };
