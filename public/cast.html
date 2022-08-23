@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>#dinsdagavond</title>
+		<link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png" />
+		<script src="OvenPlayer-0.10.1/dist/ovenplayer.js"></script>
+		<meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<style type="text/css">
+			body {
+				margin: 0;
+				background: #000;
+				color: #fff;
+				height: 100vh;
+				height: calc(var(--vh, 1vh) * 100);
+				width: 100vw;
+			}
+			.player {
+				position: absolute;
+				left: 0;
+				top: 0;
+				height: 100%;
+				width: 100%;
+				background: url('poster1280.png') no-repeat;
+				background-size: cover;
+				background-position: center;
+				background-clip: border-box;
+			}
+			cast-media-player {
+				--background: url('poster1280.png') center no-repeat cover;
+			}
+			.op-ui {
+				display: none;
+			}
+			@media (max-aspect-ratio: 16/9) {
+				#player {
+					background-size: contain;
+				}
+			}
+		</style>
+		<script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+	</head>
+	<body>
+		<div id=player class=player></div>
+		<cast-media-player class=player></cast-media-player>
+
+		<script type="text/javascript">
+			function htmlToElement(html) {
+				var template = document.createElement('template');
+				html = html.trim(); // Never return a text node of whitespace as the result
+				template.innerHTML = html;
+				return template.content.firstChild;
+			}
+
+			let ccContext = cast.framework.CastReceiverContext.getInstance();
+
+			ccContext.setLoggerLevel(cast.framework.LoggerLevel.DEBUG); // TODO disable
+
+			
+			let player = null;
+			
+			function loadPlayer(stream) {
+				if (player == null) {
+					player = OvenPlayer.create("player", {
+						autoStart: true,
+						showBigPlayButton: false,
+						timecode: true
+					});
+				
+
+				
+					let restartPending = false;
+
+					// Reload OvenPlayer when error occured.
+					player.on('stateChanged', function (obj) {
+						console.log(obj);
+						if (obj.newstate == 'playing' || obj.newstate == 'paused') {
+							document.getElementsByTagName("video")[0].style.backgroundColor = '#000';
+						}
+						else {
+							document.getElementsByTagName("video")[0].style.backgroundColor = 'transparent';
+						}
+						if (obj.newstate == 'error') {
+							if (!restartPending) {
+								restartPending = true;
+								setTimeout(function () {
+									restartPending = false;
+									if (player.getState() == 'error') {
+										player.play();
+									}
+								}, 5000)
+							}
+						}
+					});
+				}
+			
+				player.load([{file: stream, type: "webrtc"}]);
+				player.play();
+			}
+			
+			const ccOptions = new cast.framework.CastReceiverOptions();
+			ccOptions.disableIdleTimeout = true;
+			const ccPlayerManager = ccContext.getPlayerManager();
+			ccPlayerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequestData => {
+				const error = new cast.framework.messages.ErrorData(cast.framework.messages.ErrorType.LOAD_FAILED);
+				if (!loadRequestData.media) {
+					error.reason = cast.framework.messages.ErrorReason.INVALID_PARAM;
+					return error;
+				}
+				if (!loadRequestData.media.entity) {
+					loadRequestData.media.entity = loadRequestData.media.contentId;
+				}
+				if (loadRequestData.media.contentType == "application/webrtc") {
+					loadPlayer(loadRequestData.media.entity);
+					// Remove the chromecast player which would otherwise show a spinner thing
+					var castPlayer = document.getElementsByTagName("cast-media-player")[0];
+					castPlayer.parentNode.removeChild(castPlayer);
+					return null;
+				} else {
+					return loadRequestData;
+				}
+			});
+			
+			ccContext.addCustomMessageListener('urn:x-cast:nl.testmerrie', (eventType, data) => {
+				console.log("custom message", eventType, data);
+			});
+
+			ccContext.start(ccOptions);
+		</script>
+		<script type="text/javascript">
+			// First we get the viewport height and we multiple it by 1% to get a value for a vh unit
+			let vh = window.innerHeight * 0.01;
+			// Then we set the value in the --vh custom property to the root of the document
+			document.documentElement.style.setProperty('--vh', `${vh}px`);
+
+			// We listen to the resize event
+			window.addEventListener('resize', () => {
+				let vh = window.innerHeight * 0.01;
+				document.documentElement.style.setProperty('--vh', `${vh}px`);
+			});
+		</script>
+
+	</body>
+</html>

@@ -17,6 +17,7 @@ const ccAvailable = window.__gcastAvailable;
 const applicationId = config.chromecast.applicationId;
 
 const PROTOCOL_TO_CONTENT_TYPE: {[key in StreamProtocol]: string} = {
+    "hls": "application/x-mpegurl",
     "llhls": "application/x-mpegurl",
     "webrtc-udp": "application/webrtc",
     "webrtc-tcp": "application/webrtc",
@@ -92,12 +93,20 @@ export default function CastButton(props: CastButtonProps) {
         const session = ccContext.getCurrentSession();
         const state = session?.getSessionState();
         if (session == null || state !== cast.framework.SessionState.SESSION_STARTED && state !== cast.framework.SessionState.SESSION_RESUMED) return;
+        
+        session.addMessageListener('urn:x-cast:nl.testmerrie', (namespace, message) => {
+            console.log(namespace, message);
+        })
+
+        session.sendMessage('urn:x-cast:nl.testmerrie', 'urn:x-cast:nl.testmerrie').then(() => console.log("sent")).catch((error) => console.log("message error", error));
+        
+        
         const mediaInfo = streamSelectionToMediaInfo(streamSelection);
         if (mediaInfo === undefined) return;
         const request = new chrome.cast.media.LoadRequest(mediaInfo);
-        session.loadMedia(request)
-            .then(() => enqueueSnackbar("Casten is gestart", {variant: "success"}))
-            .catch((error) => enqueueSnackbar("Casten lukt niet, error: " + error, {variant: "error"}));
+        session.loadMedia(request).then((result) => console.log("after load", result));
+            // .then((errorCode) => {enqueueSnackbar("Casten is gestart", {variant: "success"}); console.log("cast started");})
+            // .catch((error) => {enqueueSnackbar("Casten lukt niet, error: " + error, {variant: "error"}); console.log("cast error", error);});
     }, [ccConnected, ccContext, streamSelection]);
 
     function toggleConnect() {

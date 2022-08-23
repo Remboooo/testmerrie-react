@@ -88,7 +88,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                             size="small"
                             onClick={() => selectStream(key, protocol)}
                         >
-                            {protocol}
+                            {protocol.replace("-", " ")}
                         </Button>
                     })}
                     </CardActions>

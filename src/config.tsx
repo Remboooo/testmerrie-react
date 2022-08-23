@@ -24,7 +24,7 @@ export default (process.env.NODE_ENV == 'development') ?
         uri: "https://testmerrie.nl/api"
     },
     chromecast: {
-        applicationId: "7D2C2565"
+        applicationId: "64EAC1AE"
     },
 } : 
 // PRODUCTION
@@ -37,6 +37,6 @@ export default (process.env.NODE_ENV == 'development') ?
         uri: "https://testmerrie.nl/api"
     },
     chromecast: {
-        applicationId: "7D2C2565"
+        applicationId: "64EAC1AE"
     },
 };

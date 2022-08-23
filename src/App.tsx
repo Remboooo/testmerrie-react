@@ -23,6 +23,7 @@ import CastButton from './CastButton';
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
+  "hls": "hls",
   "llhls": "llhls",
   "webrtc-udp": "webrtc",
   "webrtc-tcp": "webrtc",
@@ -149,6 +150,7 @@ export default function App() {
         />
         <div 
           className="invisible-menu-opener"
+          style={{cursor: "none"}}
           onMouseMove={() => {mouseOnVideoAction()}}
           onClick={(event) => {
             if (event.detail == 1) { 
