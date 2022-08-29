@@ -12,7 +12,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { Fullscreen, FullscreenExit, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { Cast, Fullscreen, FullscreenExit, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -47,6 +47,7 @@ export default function App() {
   const [volume, setVolume] = useState<number>(() => {const v = localStorage.getItem("volume"); return v === null ? 100 : parseInt(v);});
   const [streamManager, setStreamManager] = useState<StreamManager|undefined>();
   const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [logout, setLogout] = useState<() => void>();
 
   const [mouseActiveOnVideo, setMouseActiveOnVideo] = useState<boolean>(false);
@@ -102,7 +103,7 @@ export default function App() {
   }
 
   const userWantsDrawer = mouseOnDrawer || mouseActiveOnVideo;
-  const userNeedsDrawer = selectedStream === null;
+  const userNeedsDrawer = selectedStream === null || ccConnected;
 
   useEffect(() => {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
@@ -133,14 +134,14 @@ export default function App() {
   }, [playerState]);
 
   return (
-    <div className={"App " + playerState}>
+    <div className={"App " + playerState + (ccConnected ? " casting" : "")}>
       <DiscordAuth
         setUserInfo={setUserInfo}
         setAuthenticated={setAuthenticated}
         /* We have to wrap the logout function in another lambda because setLogout() produced by useState() treats any lambda as a lazy getter */
         setLogout={(logout) => setLogout(() => logout)}
       >
-        <ChromecastSupport streamSelection={selectedStream}>
+        <ChromecastSupport streamSelection={selectedStream} onConnect={setCcConnected}>
           <OvenPlayerComponent
             onClicked={() => {}}
             onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
@@ -148,6 +149,7 @@ export default function App() {
             playerOptions={{autoStart: true, controls: false}}
             volume={volume}
             muted={muted}
+            paused={ccConnected}
           />
           <div 
             className="invisible-menu-opener"
@@ -161,6 +163,11 @@ export default function App() {
               }
             }}
           ></div>
+          <div 
+            className="cast-overlay"
+          >
+            <Cast sx={{fontSize: "min(50vw, 50vh)"}} />
+          </div>
           <div 
             className="state-overlay"
           >

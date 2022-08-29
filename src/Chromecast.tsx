@@ -59,6 +59,7 @@ type PlayRequest = CustomCcRequest & {
 
 export type CastContextProps = {
     streamSelection: StreamSelection;
+    onConnect: (connected: boolean) => void;
     children?: React.ReactNode;
 };
 
@@ -70,8 +71,8 @@ type ContextValue = {
 
 const ChromecastContext = createContext<ContextValue>({ccAvailable: false, ccConnected: false, toggleConnect: () => {}});
 
-export function ChromecastSupport(props: CastContextProps) {
-    const { streamSelection } = props;
+export function ChromecastSupport(props: Partial<CastContextProps>) {
+    const { streamSelection, onConnect } = props;
 
     const { enqueueSnackbar, closeSnackbar } = useSnackbar();
 
@@ -95,7 +96,7 @@ export function ChromecastSupport(props: CastContextProps) {
             closeSnackbar(statusSnackbar.current);
         }
         if (warning !== undefined) {
-            statusSnackbar.current = enqueueSnackbar(warning, {persist: true, variant});
+            statusSnackbar.current = enqueueSnackbar(warning, {persist: true, variant, style: {whiteSpace: 'pre-line'}});
         } else {
             statusSnackbar.current = undefined;
         }
@@ -118,21 +119,22 @@ export function ChromecastSupport(props: CastContextProps) {
         let streamVariant = selection.stream.streams.main;
         let protocol = selection.protocol;
 
-        if (["hls"].indexOf(protocol) > -1) {
-            emitWarning("HLS heeft hoge latency, hou er rekening mee dat je wat achter loopt", 'info');
-        }
-
+        let warnings = []
         if (!supportedFormats["H265/2160/30"] && ["webrtc-tcp", "webrtc-udp"].indexOf(protocol) > -1) {
-            emitWarning("WebRTC gaat niet werken op jouw generatie Chromecast; we gaan voor HLS met helaas ietwat hoge latency");
+            warnings.push("WebRTC gaat niet werken op jouw generatie Chromecast; we gaan voor HLS met helaas ietwat hoge latency.");
             protocol = "hls";
         }
 
         if (!supportedFormats["H264/1080/60"] && ["llhls"].indexOf(protocol) > -1) {
-            emitWarning("Geen idee of LLHLS gaat werken op jouw Chromecast, maar we gaan het proberen. Als het ruk is, probeer HLS.");
+            warnings.push("Geen idee of LLHLS gaat werken op jouw Chromecast, maar we gaan het proberen. Als het ruk is, probeer HLS.");
         }
 
         if (!supportedFormats["H264/1080/60"] && stream.video.width > 1280 && stream.video.framerate > 30) {
-            emitWarning("Je Chromecast geeft aan geen 1080p60 te supporten, mogelijk gaat shit haperen");
+            warnings.push("Je Chromecast geeft aan geen 1080p60 te supporten, mogelijk gaat shit haperen of werkt het gewoon helemaal niet.");
+        }
+
+        if (warnings != []) {
+            emitWarning(warnings.join("\n\n"));
         }
         
         return {query: "play", url: streamVariant.protocols[protocol] as string, protocol: PROTOCOL_TO_OVENPLAYER_TYPE[protocol]};
@@ -237,7 +239,13 @@ export function ChromecastSupport(props: CastContextProps) {
         } else {
             ccContext.requestSession();
         }
-    }    
+    }
+
+    useEffect(() => {
+        if (onConnect) {
+            onConnect(!!ccConnected);
+        }
+    }, [ccConnected]);
 
     return <ChromecastContext.Provider value={{ ccAvailable, ccConnected, toggleConnect }}>{props.children}</ChromecastContext.Provider>
 }

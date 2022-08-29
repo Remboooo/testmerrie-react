@@ -53,6 +53,7 @@ export type OvenPlayerProps = {
     sources: OvenPlayerSource[],
     volume: number,
     muted: boolean,
+    paused: boolean,
 };
 
 export default function OvenPlayerComponent({
@@ -89,6 +90,7 @@ export default function OvenPlayerComponent({
         sources = [],
         volume = 100,
         muted = false,
+        paused = false,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = createRef<HTMLDivElement>();
     let [player, setPlayer] = useState<OvenPlayerInstance|null>(null);
@@ -160,7 +162,7 @@ export default function OvenPlayerComponent({
         if (player) {
             console.log("loading sources", sources);
             player.stop();
-            if (sources.length !== 0) {
+            if (!paused && sources.length !== 0) {
                 player.load(sources);
                 player.setCurrentSource(0);
                 player.setVolume(volume);
@@ -168,7 +170,7 @@ export default function OvenPlayerComponent({
                 player.play();
             }
         }
-    }, [player, sources]);
+    }, [player, sources, paused]);
 
     useEffect(() => {
         if (player) {
