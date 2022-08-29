@@ -108,7 +108,11 @@ export default function OvenPlayerComponent({
             let thePlayer = OvenPlayer.create(playerElementRef.current, playerOptions);
             thePlayer.on('ready', onReady);
             thePlayer.on('metaChanged', onMetaChanged);
-            thePlayer.on('stateChanged', (event) => {thePlayer.setVolume(volume); onStateChanged(event);});
+            thePlayer.on('stateChanged', (event) => {
+                thePlayer.setVolume(volume); 
+                thePlayer.setMute(muted); 
+                onStateChanged(event);
+            });
             thePlayer.on('resized', onResized);
             thePlayer.on('playbackRateChanged', onPlaybackRateChanged);
             thePlayer.on('seek', onSeek);

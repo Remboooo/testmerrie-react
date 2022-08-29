@@ -1,10 +1,13 @@
 <!doctype html>
 <html lang="en">
 	<head>
+		
 		<meta charset="utf-8" />
+		<meta http-equiv="Cache-Control" content="NO-CACHE"> 
 		<title>#dinsdagavond</title>
 		<link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png" />
-		<script src="OvenPlayer-0.10.1/dist/ovenplayer.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/ovenplayer@0.10.23/dist/ovenplayer.js" integrity="sha256-UtKVHuR/mDzfhdK77Z/owrgq3Kk4GSHLkJ1EwCdVuXs=" crossorigin="anonymous"></script>
+		<script src="https://cdn.jsdelivr.net/npm/hls.js@1.2.1/dist/hls.min.js" integrity="sha256-dp1Z/b0d7Rq5S4G3tDiiU8zXYSPj8WfflAT+YM/a2JI=" crossorigin="anonymous"></script>
 		<meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 		<style type="text/css">
 			body {
@@ -19,8 +22,8 @@
 				position: absolute;
 				left: 0;
 				top: 0;
-				height: 100%;
-				width: 100%;
+				height: 100vh;
+				width: 100vw;
 				background: url('poster1280.png') no-repeat;
 				background-size: cover;
 				background-position: center;
@@ -42,7 +45,7 @@
 	</head>
 	<body>
 		<div id=player class=player></div>
-		<cast-media-player class=player></cast-media-player>
+		<!-- <cast-media-player class=player></cast-media-player> -->
 
 		<script type="text/javascript">
 			function htmlToElement(html) {
@@ -55,19 +58,16 @@
 			let ccContext = cast.framework.CastReceiverContext.getInstance();
 
 			ccContext.setLoggerLevel(cast.framework.LoggerLevel.DEBUG); // TODO disable
-
 			
 			let player = null;
 			
-			function loadPlayer(stream) {
+			function loadPlayer(stream, streamType) {
 				if (player == null) {
 					player = OvenPlayer.create("player", {
 						autoStart: true,
 						showBigPlayButton: false,
 						timecode: true
 					});
-				
-
 				
 					let restartPending = false;
 
@@ -94,35 +94,86 @@
 					});
 				}
 			
-				player.load([{file: stream, type: "webrtc"}]);
+				player.load([{file: stream, type: streamType}]);
 				player.play();
 			}
 			
 			const ccOptions = new cast.framework.CastReceiverOptions();
 			ccOptions.disableIdleTimeout = true;
 			const ccPlayerManager = ccContext.getPlayerManager();
-			ccPlayerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequestData => {
-				const error = new cast.framework.messages.ErrorData(cast.framework.messages.ErrorType.LOAD_FAILED);
-				if (!loadRequestData.media) {
-					error.reason = cast.framework.messages.ErrorReason.INVALID_PARAM;
-					return error;
+
+			// ccPlayerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequestData => {
+			// 	const error = new cast.framework.messages.ErrorData(cast.framework.messages.ErrorType.LOAD_FAILED);
+			// 	if (!loadRequestData.media) {
+			// 		error.reason = cast.framework.messages.ErrorReason.INVALID_PARAM;
+			// 		return error;
+			// 	}
+			// 	if (!loadRequestData.media.entity) {
+			// 		loadRequestData.media.entity = loadRequestData.media.contentId;
+			// 	}
+
+			// 	// Remove the chromecast player which would otherwise show a spinner thing
+			// 	// var castPlayer = document.getElementsByTagName("cast-media-player")[0];
+			// 	// castPlayer.parentNode.removeChild(castPlayer);
+
+			// 	if (loadRequestData.media.contentType == "application/webrtc") {
+			// 		loadPlayer(loadRequestData.media.entity, "webrtc");
+			// 	} else {
+			// 		loadPlayer(loadRequestData.media.entity, "hls");
+			// 	}
+				
+			// 	return null;
+				
+				
+			// 	// } else {
+			// 		// return loadRequestData;
+			// 	// }
+			// });
+
+			function getSupportedFormats() {
+				const mp4 = 'video/mp4';
+				const codecH264Lvl4Dot1 = 'avc1.640028';
+				const codecH264Lvl4Dot2 = 'avc1.64002A';
+				const codecH265 = 'hev1.1.6.L150.B0'
+				const firstGenLastSupportedOS = '1.36';
+				
+				return {
+					"H265/2160/60": ccContext.canDisplayType(mp4, codecH265, 3840, 2160, 60),
+					"H265/2160/30": ccContext.canDisplayType(mp4, codecH265, 3840, 2160, 30),
+					"H264/2160/30": ccContext.canDisplayType(mp4, codecH264Lvl4Dot2, 3840, 2160, 30),
+					"H264/1080/60": ccContext.canDisplayType(mp4, codecH264Lvl4Dot2, 1920, 1080, 60),
+					"H264/1080/30": ccContext.canDisplayType(mp4, codecH264Lvl4Dot1, 1920, 1080, 30),
+					"H264/720/60": ccContext.canDisplayType(mp4, codecH264Lvl4Dot1, 1280, 720, 60),
 				}
-				if (!loadRequestData.media.entity) {
-					loadRequestData.media.entity = loadRequestData.media.contentId;
-				}
-				if (loadRequestData.media.contentType == "application/webrtc") {
-					loadPlayer(loadRequestData.media.entity);
-					// Remove the chromecast player which would otherwise show a spinner thing
-					var castPlayer = document.getElementsByTagName("cast-media-player")[0];
-					castPlayer.parentNode.removeChild(castPlayer);
-					return null;
-				} else {
-					return loadRequestData;
-				}
-			});
+			}
+
+			function play(url, protocol) {
+				console.log("Loading " + protocol + ": " + url)
+				loadPlayer(url, protocol);
+				return {url: url, protocol: protocol};
+			}
 			
-			ccContext.addCustomMessageListener('urn:x-cast:nl.testmerrie', (eventType, data) => {
-				console.log("custom message", eventType, data);
+			ccContext.addCustomMessageListener('urn:x-cast:nl.testmerrie', (event) => {
+				const data = event.data;
+				const sender = event.senderId;
+
+				console.log("Received query: ", data);
+
+				const query = data["query"];
+				let response = {"status": "unknownMessage"};
+
+				switch (query) {
+					case "getSupportedFormats":
+						response = getSupportedFormats();
+						response["status"] = "ok";
+						break;
+					case "play":
+						response = play(data["url"], data["protocol"]);
+						response["status"] = "ok";
+						break;
+					default:
+				}
+				ccContext.sendCustomMessage('urn:x-cast:nl.testmerrie', sender, {query: query, ...response});
 			});
 
 			ccContext.start(ccOptions);

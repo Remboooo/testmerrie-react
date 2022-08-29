@@ -32,7 +32,6 @@ export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
     useEffect(() => {
         if (props.setLogout) {
             props.setLogout(() => {
-                console.log("doei");
                 discardAuthentication();
                 window.location.reload(); // OvenPlayer does not like getting destructed.. this is my last resort
             });

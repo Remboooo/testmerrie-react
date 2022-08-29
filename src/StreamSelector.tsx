@@ -26,12 +26,13 @@ export default function StreamSelector(props: StreamSelectorProps) {
 
     function selectStream(stream: string|null, protocol: StreamProtocol|null) {
         var newSelection: StreamSelectionRequest;
-        console.log(stream, protocol, currentStream);
+        
         if (stream === null || (stream == currentStream?.key && (protocol == currentStream?.protocol || protocol === null))) {
             newSelection = NO_SELECTION;
         } else {
             newSelection = {key: stream, protocol: protocol};
         }
+        console.log("select stream", newSelection);
         onStreamRequested(newSelection);
     }
 

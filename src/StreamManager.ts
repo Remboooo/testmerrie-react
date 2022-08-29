@@ -48,7 +48,7 @@ export class StreamManager {
             this.availableStreamListener({streamMap: streams, refreshTimestamp: this.refreshTimestamp});
             this.checkAutoStart();
         }).catch(reason => {
-            console.log(reason);
+            console.log("failed to get streams", reason);
             // TODO remove me testing
             this.availableStreams = {"test": {name: "test", streams: {main: {protocols: {}}}, created: "2022-08-07T01:02:03Z", video: {width: 1, height: 2, framerate: 3, codec: "aids", bitrate: 3}, audio: {channels: 1, codec: "aids", bitrate: 2, samplerate: 3}}}
             this.availableStreamListener({streamMap: this.availableStreams, refreshTimestamp: this.refreshTimestamp});

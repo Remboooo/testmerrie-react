@@ -18,7 +18,7 @@ import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
 import DiscordAuth from './DiscordAuth';
 import Button from '@mui/material/Button';
-import CastButton from './CastButton';
+import { ChromecastSupport, ChromecastButton } from './Chromecast';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -140,93 +140,95 @@ export default function App() {
         /* We have to wrap the logout function in another lambda because setLogout() produced by useState() treats any lambda as a lazy getter */
         setLogout={(logout) => setLogout(() => logout)}
       >
-        <OvenPlayerComponent
-          onClicked={() => {}}
-          onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
-          sources={sourcesList}
-          playerOptions={{autoStart: true, controls: false}}
-          volume={volume}
-          muted={muted}
-        />
-        <div 
-          className="invisible-menu-opener"
-          style={{cursor: "none"}}
-          onMouseMove={() => {mouseOnVideoAction()}}
-          onClick={(event) => {
-            if (event.detail == 1) { 
-              openDrawerWithoutTimeout();
-            } else if (event.detail == 2) {
-              toggleFullscreen();
-            }
-          }}
-        ></div>
-        <div 
-          className="state-overlay"
-        >
-          <img src={tuinfeest} className="waiting-icon" alt="waiting" />
-        </div>
-        <div 
-          className="error-overlay"
-        >
-          Er gaat iets niet goed 😞<br />
-          Misschien is de stream gestopt, misschien gaat er gewoon iets mis.<br />
-          Probeer anders eens een ander protocol?
-        </div>
-        <Drawer
-          className="drawer"
-          open={drawerOpen}
-          onClose={() => {setMouseOnDrawer(false);}}
-          onMouseMove={() => mouseOnVideoAction()}
-          onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
-          ModalProps={{ onBackdropClick: () => {if (!userNeedsDrawer) setDrawerOpen(false);} }}
-          anchor="top"
-        >
-          <Box
-              onMouseOver={() => {setMouseOnDrawer(true);}}
-              onMouseOut={() => {setMouseOnDrawer(false);}}
+        <ChromecastSupport streamSelection={selectedStream}>
+          <OvenPlayerComponent
+            onClicked={() => {}}
+            onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
+            sources={sourcesList}
+            playerOptions={{autoStart: true, controls: false}}
+            volume={volume}
+            muted={muted}
+          />
+          <div 
+            className="invisible-menu-opener"
+            style={{cursor: "none"}}
+            onMouseMove={() => {mouseOnVideoAction()}}
+            onClick={(event) => {
+              if (event.detail == 1) { 
+                openDrawerWithoutTimeout();
+              } else if (event.detail == 2) {
+                toggleFullscreen();
+              }
+            }}
+          ></div>
+          <div 
+            className="state-overlay"
           >
-            <StreamSelector 
-              onStreamRequested={(selection) => streamManager?.requestStreamSelection(selection)}
-              streams={availableStreamUpdate.streamMap}
-              screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
-              currentStream={selectedStream}
-            />
-            <FormGroup sx={{margin: "0 1em"}}>
-              <FormControlLabel control={
-                <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
-              } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
-            </FormGroup>
-            <Divider />
-            <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
-              <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
-                <Checkbox
-                  onClick={() => setMuted(!muted)}
-                  checked={muted}
-                  icon={<VolumeOffOutlined />}
-                  checkedIcon={<VolumeOff />}
-                />
-                <VolumeDown />
-                <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
-                <VolumeUp />
-                <Checkbox 
-                  onClick={() => toggleFullscreen()}
-                  checked={!!window.document.fullscreenElement}
-                  icon={<Fullscreen />} 
-                  checkedIcon={<FullscreenExit />}
-                />
-                <CastButton streamSelection={selectedStream} />
-              </Stack>
-              <Box sx={{margin: "1em", display: 'inline-flex', justifyContent: 'center', alignItems: 'center'}}>
-                <Box sx={{flexGrow: 1}}>
-                  {userInfo ? (
-                    <div>Hello {userInfo?.user?.username} 👋</div>
-                  ) : ''}
+            <img src={tuinfeest} className="waiting-icon" alt="waiting" />
+          </div>
+          <div 
+            className="error-overlay"
+          >
+            Er gaat iets niet goed 😞<br />
+            Misschien is de stream gestopt, misschien gaat er gewoon iets mis.<br />
+            Probeer anders eens een ander protocol?
+          </div>
+          <Drawer
+            className="drawer"
+            open={drawerOpen}
+            onClose={() => {setMouseOnDrawer(false);}}
+            onMouseMove={() => mouseOnVideoAction()}
+            onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
+            ModalProps={{ onBackdropClick: () => {if (!userNeedsDrawer) setDrawerOpen(false);} }}
+            anchor="top"
+          >
+            <Box
+                onMouseOver={() => {setMouseOnDrawer(true);}}
+                onMouseOut={() => {setMouseOnDrawer(false);}}
+            >
+              <StreamSelector 
+                onStreamRequested={(selection) => streamManager?.requestStreamSelection(selection)}
+                streams={availableStreamUpdate.streamMap}
+                screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
+                currentStream={selectedStream}
+              />
+              <FormGroup sx={{margin: "0 1em"}}>
+                <FormControlLabel control={
+                  <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
+                } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
+              </FormGroup>
+              <Divider />
+              <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
+                <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                  <Checkbox
+                    onClick={() => setMuted(!muted)}
+                    checked={muted}
+                    icon={<VolumeOffOutlined />}
+                    checkedIcon={<VolumeOff />}
+                  />
+                  <VolumeDown />
+                  <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
+                  <VolumeUp />
+                  <Checkbox 
+                    onClick={() => toggleFullscreen()}
+                    checked={!!window.document.fullscreenElement}
+                    icon={<Fullscreen />} 
+                    checkedIcon={<FullscreenExit />}
+                  />
+                  <ChromecastButton />
+                </Stack>
+                <Box sx={{margin: "1em", display: 'inline-flex', justifyContent: 'center', alignItems: 'center'}}>
+                  <Box sx={{flexGrow: 1}}>
+                    {userInfo ? (
+                      <div>Hello {userInfo?.user?.username} 👋</div>
+                    ) : ''}
+                  </Box>
+                  <Button onClick={logout}>Uitloggen</Button>
                 </Box>
-                <Button onClick={logout}>Uitloggen</Button>
               </Box>
             </Box>
-          </Box>
-        </Drawer>
+          </Drawer>
+        </ChromecastSupport>
       </DiscordAuth>
     </div>
   );
