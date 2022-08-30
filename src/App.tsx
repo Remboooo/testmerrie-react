@@ -12,13 +12,16 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { Cast, Fullscreen, FullscreenExit, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { Cast, Fullscreen, FullscreenExit, Help, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
 import DiscordAuth from './DiscordAuth';
 import Button from '@mui/material/Button';
 import { ChromecastSupport, ChromecastButton } from './Chromecast';
+import IconButton from '@mui/material/IconButton';
+import Dialog from '@mui/material/Dialog';
+import { DialogActions, DialogContent, DialogContentText, DialogTitle, Link, Typography } from '@mui/material';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -48,6 +51,7 @@ export default function App() {
   const [streamManager, setStreamManager] = useState<StreamManager|undefined>();
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
+  const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [logout, setLogout] = useState<() => void>();
 
   const [mouseActiveOnVideo, setMouseActiveOnVideo] = useState<boolean>(false);
@@ -206,36 +210,57 @@ export default function App() {
               </FormGroup>
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
-                <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
-                  <Checkbox
-                    onClick={() => setMuted(!muted)}
-                    checked={muted}
-                    icon={<VolumeOffOutlined />}
-                    checkedIcon={<VolumeOff />}
-                  />
-                  <VolumeDown />
-                  <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
-                  <VolumeUp />
-                  <Checkbox 
-                    onClick={() => toggleFullscreen()}
-                    checked={!!window.document.fullscreenElement}
-                    icon={<Fullscreen />} 
-                    checkedIcon={<FullscreenExit />}
-                  />
-                  <ChromecastButton />
-                </Stack>
+                <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                    <Checkbox
+                      onClick={() => setMuted(!muted)}
+                      checked={muted}
+                      icon={<VolumeOffOutlined />}
+                      checkedIcon={<VolumeOff />}
+                    />
+                    <VolumeDown />
+                    <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
+                    <VolumeUp />
+                  </Stack>
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                    <Checkbox 
+                      onClick={() => toggleFullscreen()}
+                      checked={!!window.document.fullscreenElement}
+                      icon={<Fullscreen />} 
+                      checkedIcon={<FullscreenExit />}
+                    />
+                    <ChromecastButton />
+                  </Stack>
+                </Box>
                 <Box sx={{margin: "1em", display: 'inline-flex', justifyContent: 'center', alignItems: 'center'}}>
                   <Box sx={{flexGrow: 1}}>
                     {userInfo ? (
                       <div>Hello {userInfo?.user?.username} 👋</div>
                     ) : ''}
                   </Box>
-                  <Button onClick={logout}>Uitloggen</Button>
+                  <IconButton onClick={logout}><Logout /></IconButton>
+                  <IconButton onClick={() => {setHelpOpen(true);}}><Help /></IconButton>
                 </Box>
               </Box>
             </Box>
           </Drawer>
         </ChromecastSupport>
+        <Dialog open={helpOpen}>
+            <DialogTitle>
+                Halp
+            </DialogTitle>
+            <DialogContent>
+                <DialogContentText variant='h5'>Michael wat is dit?</DialogContentText>
+                <DialogContentText>Als je het weet, weet je het.</DialogContentText>
+                <DialogContentText sx={{padding: "1em 0 0 0"}} variant='h5'>Ik heb een klacht</DialogContentText>
+                <DialogContentText>Fix het zelf maar, <Link href="https://github.com/Remboooo/testmerrie-react" target="_blank" rel="noopener">hier is de sauce</Link>.</DialogContentText>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => {setHelpOpen(false);}} autoFocus>
+                    OK dan
+                </Button>
+            </DialogActions>
+        </Dialog>
       </DiscordAuth>
     </div>
   );

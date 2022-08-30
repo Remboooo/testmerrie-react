@@ -74,22 +74,22 @@ export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
                 aria-labelledby="alert-dialog-title"
                 aria-describedby="alert-dialog-description"
             >
-            <DialogTitle id="alert-dialog-title">
-                Hold up
-            </DialogTitle>
-            <DialogContent>
-                <DialogContentText id="alert-dialog-description">
-                    We kunnen niet verifiëren dat je een Cool Persoon™ bent... probeer even opnieuw in te loggen, en check of je het goeie account te pakken hebt.
-                </DialogContentText>
-                <DialogContentText variant="body2" sx={{paddingTop: "1em"}}>
-                    {apiAuthError ? "De server zei \"" + apiAuthError + "\"" : "Discord zei \"" + discordAuthError + "\""}
-                </DialogContentText>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={refuse}>Nee.</Button>
-                <Button onClick={startAuthentication} autoFocus>
-                    Naar Discord!
-                </Button>
+                <DialogTitle id="alert-dialog-title">
+                    Hold up
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description">
+                        We kunnen niet verifiëren dat je een Cool Persoon™ bent... probeer even opnieuw in te loggen, en check of je het goeie account te pakken hebt.
+                    </DialogContentText>
+                    <DialogContentText variant="body2" sx={{paddingTop: "1em"}}>
+                        {apiAuthError ? "De server zei \"" + apiAuthError + "\"" : "Discord zei \"" + discordAuthError + "\""}
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={refuse}>Nee.</Button>
+                    <Button onClick={startAuthentication} autoFocus>
+                        Naar Discord!
+                    </Button>
                 </DialogActions>
             </Dialog>
         );
@@ -103,20 +103,20 @@ export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
                 aria-labelledby="alert-dialog-title"
                 aria-describedby="alert-dialog-description"
             >
-            <DialogTitle id="alert-dialog-title">
-                Members only
-            </DialogTitle>
-            <DialogContent>
-                <DialogContentText id="alert-dialog-description">
-                    We moeten even controleren dat je wel een Cool Persoon™ bent.
-                    Daarom vragen we je om via Discord in te loggen.
-                </DialogContentText>
-                </DialogContent>
-            <DialogActions>
-                <Button onClick={refuse}>Nee.</Button>
-                <Button onClick={startAuthentication} autoFocus>
-                    Naar Discord!
-                </Button>
+                <DialogTitle id="alert-dialog-title">
+                    Members only
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description">
+                        We moeten even controleren dat je wel een Cool Persoon™ bent.
+                        Daarom vragen we je om via Discord in te loggen.
+                    </DialogContentText>
+                    </DialogContent>
+                <DialogActions>
+                    <Button onClick={refuse}>Nee.</Button>
+                    <Button onClick={startAuthentication} autoFocus>
+                        Naar Discord!
+                    </Button>
                 </DialogActions>
             </Dialog>
         );

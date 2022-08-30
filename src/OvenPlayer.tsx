@@ -1,6 +1,6 @@
 import OvenPlayer from 'ovenplayer'
 
-import React, { createRef, useEffect, useState } from 'react';
+import React, { createRef, useCallback, useEffect, useRef, useState } from 'react';
 
 // message box with errors div class = op-message-box
 // error text div class = op-message-text
@@ -49,7 +49,6 @@ export type OvenPlayerProps = {
     onDashPrepared: (dashObject: any) => void,
     onDashDestroyed: () => void,
     onDestroy: () => void,
-    playerRef: (player: OvenPlayerInstance) => void,
     sources: OvenPlayerSource[],
     volume: number,
     muted: boolean,
@@ -86,35 +85,37 @@ export default function OvenPlayerComponent({
         onDashPrepared = (obj) => {},
         onDashDestroyed = () => {},
         onDestroy = () => {},
-        playerRef = (instance: OvenPlayerInstance) => {},
         sources = [],
         volume = 100,
         muted = false,
         paused = false,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = createRef<HTMLDivElement>();
-    let [player, setPlayer] = useState<OvenPlayerInstance|null>(null);
+    let playerRef = useRef<OvenPlayerInstance>();
+    let volumeRef = useRef<number>(volume);
+    let mutedRef = useRef<boolean>(muted);
 
-    useEffect(() => {
-        if (player) {
-            playerRef(player);
+    volumeRef.current = volume;
+    mutedRef.current = muted;
+
+    const stateChangedCallback = useCallback((event: {prevstate: OvenPlayerState, newstate: OvenPlayerState}) => {
+        if (playerRef.current) {
+            playerRef.current.setVolume(volumeRef.current); 
+            playerRef.current.setMute(mutedRef.current); 
         }
-    }, [playerRef, player]);
+        onStateChanged(event);
+    }, [playerRef.current, volumeRef, mutedRef]);
 
     function createPlayer() {
         if (playerElementRef.current === null) {
             console.error("No player div found");
             return;
         }
-        if (player == null) {
+        if (playerRef.current == null) {
             let thePlayer = OvenPlayer.create(playerElementRef.current, playerOptions);
             thePlayer.on('ready', onReady);
             thePlayer.on('metaChanged', onMetaChanged);
-            thePlayer.on('stateChanged', (event) => {
-                thePlayer.setVolume(volume); 
-                thePlayer.setMute(muted); 
-                onStateChanged(event);
-            });
+            thePlayer.on('stateChanged', stateChangedCallback);
             thePlayer.on('resized', onResized);
             thePlayer.on('playbackRateChanged', onPlaybackRateChanged);
             thePlayer.on('seek', onSeek);
@@ -139,14 +140,14 @@ export default function OvenPlayerComponent({
             thePlayer.on('dashPrepared', onDashPrepared);
             thePlayer.on('dashDestroyed', onDashDestroyed);
             thePlayer.on('destroy', onDestroy);
-            setPlayer(thePlayer);
+            playerRef.current = thePlayer;
         }
     }
 
     function destroy() {
-        if (player) {
-            player.remove();
-            setPlayer(null);
+        if (playerRef.current) {
+            playerRef.current.remove();
+            playerRef.current = undefined;
         }
     }
 
@@ -159,25 +160,25 @@ export default function OvenPlayerComponent({
     }, [playerElementRef])
 
     useEffect(() => {
-        if (player) {
+        if (playerRef.current) {
             console.log("loading sources", sources);
-            player.stop();
+            playerRef.current.stop();
             if (!paused && sources.length !== 0) {
-                player.load(sources);
-                player.setCurrentSource(0);
-                player.setVolume(volume);
-                player.setMute(muted);
-                player.play();
+                playerRef.current.load(sources);
+                playerRef.current.setCurrentSource(0);
+                playerRef.current.setVolume(volume);
+                playerRef.current.setMute(muted);
+                playerRef.current.play();
             }
         }
-    }, [player, sources, paused]);
+    }, [playerRef.current, sources]);
 
     useEffect(() => {
-        if (player) {
-            player.setVolume(volume);
-            player.setMute(muted);
+        if (playerRef.current) {
+            playerRef.current.setVolume(volume);
+            playerRef.current.setMute(muted);
         }
-    }, [player, volume, muted]);
+    }, [playerRef.current, volume, muted]);
 
     return(
         <div 
