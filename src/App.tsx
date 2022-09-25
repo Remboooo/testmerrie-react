@@ -1,9 +1,9 @@
 import './App.css';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
-import { getUserInfo, StreamProtocol, UserInfo } from './BamApi';
+import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, StreamManager, StreamSelection } from './StreamManager';
 import Drawer from '@mui/material/Drawer';
@@ -21,7 +21,7 @@ import Button from '@mui/material/Button';
 import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
-import { DialogActions, DialogContent, DialogContentText, DialogTitle, Link, Typography } from '@mui/material';
+import { DialogActions, DialogContent, DialogContentText, DialogTitle, Link } from '@mui/material';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -54,8 +54,8 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [logout, setLogout] = useState<() => void>();
 
+  const mouseOnDrawerOpenerTimeout = useRef<ReturnType<typeof setTimeout>|undefined>();
   const [mouseActiveOnDrawerOpener, setMouseActiveOnDrawerOpener] = useState<boolean>(false);
-  const [mouseOnDrawerOpenerTimeout, setMouseOnDrawerOpenerTimeout] = useState<ReturnType<typeof setTimeout>|undefined>();
 
   const mouseMovingTimeout = useRef<ReturnType<typeof setTimeout>|undefined>();
   const [mouseVisibleOnVideo, setMouseVisibleOnVideo] = useState<boolean>(false);
@@ -85,14 +85,10 @@ export default function App() {
 
   /* Drawer open/close logic */
 
-  let tempMouseOnDrawerOpenerTimeout: ReturnType<typeof setTimeout>|undefined = undefined;
-
   function clearMouseOnVideoTimeout() {
-    if (mouseOnDrawerOpenerTimeout !== undefined) {
-      clearTimeout(mouseOnDrawerOpenerTimeout);
-    }
-    if (tempMouseOnDrawerOpenerTimeout !== undefined) {
-      clearTimeout(tempMouseOnDrawerOpenerTimeout);
+    if (mouseOnDrawerOpenerTimeout.current !== undefined) {
+      clearTimeout(mouseOnDrawerOpenerTimeout.current);
+      mouseOnDrawerOpenerTimeout.current = undefined;
     }
   }
 
@@ -111,8 +107,7 @@ export default function App() {
     clearMouseOnVideoTimeout();
     setMouseActiveOnDrawerOpener(true);
     setDrawerOpen(true);
-    tempMouseOnDrawerOpenerTimeout = setTimeout(() => setMouseActiveOnDrawerOpener(false), MOUSE_ON_VIDEO_TIMEOUT);
-    setMouseOnDrawerOpenerTimeout(tempMouseOnDrawerOpenerTimeout);
+    mouseOnDrawerOpenerTimeout.current = setTimeout(() => setMouseActiveOnDrawerOpener(false), MOUSE_ON_VIDEO_TIMEOUT);
   }
 
   function openDrawerWithoutTimeout() {
