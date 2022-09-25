@@ -54,8 +54,11 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [logout, setLogout] = useState<() => void>();
 
-  const [mouseActiveOnVideo, setMouseActiveOnVideo] = useState<boolean>(false);
-  const [mouseOnVideoTimeout, setMouseOnVideoTimeout] = useState<ReturnType<typeof setTimeout>|undefined>();
+  const [mouseActiveOnDrawerOpener, setMouseActiveOnDrawerOpener] = useState<boolean>(false);
+  const [mouseOnDrawerOpenerTimeout, setMouseOnDrawerOpenerTimeout] = useState<ReturnType<typeof setTimeout>|undefined>();
+
+  const mouseMovingTimeout = useRef<ReturnType<typeof setTimeout>|undefined>();
+  const [mouseVisibleOnVideo, setMouseVisibleOnVideo] = useState<boolean>(false);
 
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
@@ -82,23 +85,34 @@ export default function App() {
 
   /* Drawer open/close logic */
 
-  let tempMouseOnVideoTimeout: ReturnType<typeof setTimeout>|undefined = undefined;
+  let tempMouseOnDrawerOpenerTimeout: ReturnType<typeof setTimeout>|undefined = undefined;
 
   function clearMouseOnVideoTimeout() {
-    if (mouseOnVideoTimeout !== undefined) {
-      clearTimeout(mouseOnVideoTimeout);
+    if (mouseOnDrawerOpenerTimeout !== undefined) {
+      clearTimeout(mouseOnDrawerOpenerTimeout);
     }
-    if (tempMouseOnVideoTimeout !== undefined) {
-      clearTimeout(tempMouseOnVideoTimeout);
+    if (tempMouseOnDrawerOpenerTimeout !== undefined) {
+      clearTimeout(tempMouseOnDrawerOpenerTimeout);
     }
   }
 
   function mouseOnVideoAction() {
+    if (mouseMovingTimeout.current) {
+      clearTimeout(mouseMovingTimeout.current);
+    }
+    mouseMovingTimeout.current = setTimeout(() => {
+      mouseMovingTimeout.current = undefined;
+      setMouseVisibleOnVideo(false);
+    }, MOUSE_ON_VIDEO_TIMEOUT);
+    setMouseVisibleOnVideo(true);
+  }
+  
+  function mouseDrawerOpenerAction() {
     clearMouseOnVideoTimeout();
-    setMouseActiveOnVideo(true);
+    setMouseActiveOnDrawerOpener(true);
     setDrawerOpen(true);
-    tempMouseOnVideoTimeout = setTimeout(() => setMouseActiveOnVideo(false), MOUSE_ON_VIDEO_TIMEOUT);
-    setMouseOnVideoTimeout(tempMouseOnVideoTimeout);
+    tempMouseOnDrawerOpenerTimeout = setTimeout(() => setMouseActiveOnDrawerOpener(false), MOUSE_ON_VIDEO_TIMEOUT);
+    setMouseOnDrawerOpenerTimeout(tempMouseOnDrawerOpenerTimeout);
   }
 
   function openDrawerWithoutTimeout() {
@@ -106,12 +120,12 @@ export default function App() {
     setDrawerOpen(true);
   }
 
-  const userWantsDrawer = mouseOnDrawer || mouseActiveOnVideo;
+  const userWantsDrawer = mouseOnDrawer || mouseActiveOnDrawerOpener;
   const userNeedsDrawer = selectedStream === null || ccConnected;
 
   useEffect(() => {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
-  }, [mouseActiveOnVideo, mouseOnDrawer, selectedStream])
+  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream])
 
   /* Fullscreen toggle logic */
 
@@ -156,9 +170,20 @@ export default function App() {
             paused={ccConnected}
           />
           <div 
+            className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
+            onMouseMove={() => {mouseOnVideoAction()}}
+            onClick={(event) => {
+              if (event.detail == 1) { 
+                openDrawerWithoutTimeout();
+              } else if (event.detail == 2) {
+                toggleFullscreen();
+              }
+            }}
+          ></div>
+          <div 
             className="invisible-menu-opener"
             style={{cursor: "none"}}
-            onMouseMove={() => {mouseOnVideoAction()}}
+            onMouseMove={() => {mouseDrawerOpenerAction()}}
             onClick={(event) => {
               if (event.detail == 1) { 
                 openDrawerWithoutTimeout();
@@ -188,7 +213,7 @@ export default function App() {
             className="drawer"
             open={drawerOpen}
             onClose={() => {setMouseOnDrawer(false);}}
-            onMouseMove={() => mouseOnVideoAction()}
+            onMouseMove={() => mouseDrawerOpenerAction()}
             onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
             ModalProps={{ onBackdropClick: () => {if (!userNeedsDrawer) setDrawerOpen(false);} }}
             anchor="top"
