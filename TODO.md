@@ -1,3 +1,4 @@
  - Test if audiocontext can be created automatically, and if so, restore autostart state
  - Retry stream after failure / fix autostart functionality after failure
- - Volume is not restored correctly when starting a stream. Probably because I still don't understand how to use functional component props properly inside `useCallback`.
+ - If stream error + stream is gone from API -> stream is stopped, so act as if no stream selected
+ 

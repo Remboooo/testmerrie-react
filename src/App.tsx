@@ -12,7 +12,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { Cast, Fullscreen, FullscreenExit, Help, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -176,7 +176,7 @@ export default function App() {
             }}
           ></div>
           <div 
-            className="invisible-menu-opener"
+            className={"invisible-menu-opener" + (mouseVisibleOnVideo ? " mousing" : "")}
             style={{cursor: "none"}}
             onMouseMove={() => {mouseDrawerOpenerAction()}}
             onClick={(event) => {
@@ -186,7 +186,7 @@ export default function App() {
                 toggleFullscreen();
               }
             }}
-          ></div>
+          ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
           <div 
             className="cast-overlay"
           >
