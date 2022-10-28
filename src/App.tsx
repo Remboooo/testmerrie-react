@@ -167,10 +167,13 @@ export default function App() {
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
             onMouseMove={() => {mouseOnVideoAction()}}
-            onClick={(event) => {
-              if (event.detail == 1) { 
+            onPointerDown={(event) => {
+              if (event.detail == 1 && event.pointerType != "mouse") { 
                 openDrawerWithoutTimeout();
-              } else if (event.detail == 2) {
+              }
+            }}
+            onClick={(event) => {
+              if (event.detail == 2) {
                 toggleFullscreen();
               }
             }}
