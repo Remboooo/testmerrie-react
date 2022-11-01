@@ -22,11 +22,9 @@ export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
     const { enqueueSnackbar, } = useSnackbar();
     
     useEffect(() => {
-        try {
-            setDiscordAuthenticated(checkAuthentication());
-        } catch (authError) {
-            setDiscordAuthError(authError);
-        }
+        checkAuthentication()
+            .then(r => setDiscordAuthenticated(r))
+            .catch(e => setDiscordAuthError(e));
     }, []);
 
     useEffect(() => {

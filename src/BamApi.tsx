@@ -4,11 +4,17 @@ import config from './config';
 
 const API_BASE = config.bam.uri + "/v1";
 
+type DiscordToken = {
+    accessToken: string,
+    tokenType: string,  
+    expireTime: Date,
+    scope: string,
+    refreshToken: string,
+}
+
 type DiscordAccess = {
-  accessToken: string,
-  scope: string,
-  tokenType: string,
-  expireTime: Date
+  code: string,
+  token: DiscordToken|undefined,
 };
 
 let AUTH: DiscordAccess|undefined = ((v)=>{ 
@@ -91,7 +97,7 @@ export async function getUserInfo(): Promise<UserInfo|undefined> {
 
 function getHeaders() {
     if (AUTH !== undefined) {
-        const header = {'Authorization': 'Bearer ' + AUTH.accessToken};
+        const header = {'Authorization': 'Bearer ' + AUTH.token?.accessToken};
         return header;
     } else {
         return {};
@@ -104,29 +110,64 @@ export function startAuthentication() {
     window.location.href = oauth.generateAuthUrl({
         scope: ["identify", "guilds", "guilds.members.read"],
         state: state,
-        responseType: "token",
+        responseType: "code",
+        prompt: "none"
     });
 }
 
-function handleAuthCallback(): DiscordAccess|undefined {
+async function getTokenFromCode(code: string): Promise<DiscordToken> {
+    return (await fetch(API_BASE + "/token?" + new URLSearchParams({code, "redirect_uri": config.discord.redirectUri}))).json().then(r => {
+        if (r["error_description"]) {
+            throw r["error_description"];
+        }
+        var expireTime = new Date();
+        expireTime.setSeconds(expireTime.getSeconds() + parseInt(r["expires_in"]))
+        return {
+            accessToken: r["access_token"],
+            tokenType: r["token_type"],
+            expireTime,
+            scope: r["scope"],
+            refreshToken: r["refresh_token"],
+        };
+    });
+}
+
+async function getTokenFromRefreshToken(refreshToken: string): Promise<DiscordToken> {
+    return (await fetch(API_BASE + "/refresh-token?" + new URLSearchParams({"refresh_token": refreshToken}))).json().then(r => {
+        if (r["error_description"]) {
+            throw r["error_description"];
+        }
+        var expireTime = new Date();
+        expireTime.setSeconds(expireTime.getSeconds() + parseInt(r["expires_in"]))
+        return {
+            accessToken: r["access_token"],
+            tokenType: r["token_type"],
+            expireTime,
+            scope: r["scope"],
+            refreshToken: r["refresh_token"],
+        };
+    });
+}
+
+async function handleAuthCallback(): Promise<DiscordAccess|undefined> {
     const urlParams = new URLSearchParams(window.location.search || window.location.hash.substring(1));
 
-    const tokenType = urlParams.get("token_type");
-    const accessToken = urlParams.get("access_token");
-    const expiresIn = urlParams.get("expires_in");
-    const scope = urlParams.get("scope");
+    const code = urlParams.get("code");
     const state = urlParams.get("state");
     const error = urlParams.get("error");
 
     var expectedState = localStorage.getItem("discord-oauth2-state");
     localStorage.removeItem("discord-oauth2-state");
     if (state === expectedState) {
-        if (accessToken && expiresIn && tokenType && scope) {
-            var expireTime = new Date();
-            expireTime.setSeconds(expireTime.getSeconds() + parseInt(expiresIn));
-            var auth = { accessToken, expireTime, scope, tokenType };
+        if (code !== null) {
+            var auth: DiscordAccess = { code, token: undefined };
             localStorage.setItem("discord-oauth2", JSON.stringify(auth));
-            return auth;
+            
+            auth.token = await getTokenFromCode(code);
+            if (auth.token.accessToken && auth.token.expireTime && auth.token.tokenType && auth.token.scope) {
+                localStorage.setItem("discord-oauth2", JSON.stringify(auth));
+                return auth;
+            }
         }
         else if (error) {
             throw urlParams.get("error_description");
@@ -135,17 +176,30 @@ function handleAuthCallback(): DiscordAccess|undefined {
         console.error("Stored state and auth callback state mismatch");
     }
     return undefined;
-}  
+}
 
-export function checkAuthentication() {
+async function tryRefreshToken() {
+    if (AUTH?.token?.refreshToken) {
+        // Less than 24h until expiry ⇒ refresh
+        if (new Date(AUTH?.token?.expireTime).getTime() - new Date().getTime() < 1000 * 60 * 60 * 24) {
+            AUTH.token = await getTokenFromRefreshToken(AUTH.token.refreshToken);
+        }
+    }
+}
+
+export async function checkAuthentication() {
     let expiredTime = (()=>{let d = new Date(); d.setHours(d.getHours() - 1); return d;})();
 
     if (window.location.pathname == "/authcallback") {
-        AUTH = handleAuthCallback();
+        AUTH = await handleAuthCallback();
         window.history.pushState(null, "", "/");
+    } else {
+        await tryRefreshToken();
+        // Make sure token is refreshed whenever it is about to expire if the page stays open for a long time
+        setInterval(tryRefreshToken, 60 * 1000);
     }
 
-    return !(AUTH === undefined || AUTH.expireTime <= expiredTime);
+    return !(AUTH === undefined || AUTH.token?.expireTime === undefined || AUTH.token?.expireTime <= expiredTime);
 }
 
 export function discardAuthentication() {
