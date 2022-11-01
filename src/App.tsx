@@ -226,11 +226,11 @@ export default function App() {
                 screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
                 currentStream={selectedStream}
               />
-              <FormGroup sx={{margin: "0 1em"}}>
+              {Object.entries(availableStreamUpdate.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
                 <FormControlLabel control={
                   <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
                 } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
-              </FormGroup>
+              </FormGroup> : <></>}
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
                 <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
