@@ -180,25 +180,27 @@ async function handleAuthCallback(): Promise<DiscordAccess|undefined> {
 
 async function tryRefreshToken() {
     if (AUTH?.token?.refreshToken) {
+        const expiryMillis = new Date(AUTH?.token?.expireTime).getTime() - new Date().getTime();
+        console.info(expiryMillis + " millis until token expiry");
         // Less than 24h until expiry ⇒ refresh
-        if (new Date(AUTH?.token?.expireTime).getTime() - new Date().getTime() < 1000 * 60 * 60 * 24) {
+        if (expiryMillis < 1000 * 60 * 60 * 24) {
             AUTH.token = await getTokenFromRefreshToken(AUTH.token.refreshToken);
+            localStorage.setItem("discord-oauth2", JSON.stringify(AUTH));
         }
     }
 }
 
 export async function checkAuthentication() {
-    let expiredTime = (()=>{let d = new Date(); d.setHours(d.getHours() - 1); return d;})();
+    let expiredTime = (()=>{let d = new Date(); d.setHours(d.getHours() + 1); return d;})();
 
     if (window.location.pathname == "/authcallback") {
         AUTH = await handleAuthCallback();
         window.history.pushState(null, "", "/");
-    } else {
-        await tryRefreshToken();
-        // Make sure token is refreshed whenever it is about to expire if the page stays open for a long time
-        setInterval(tryRefreshToken, 60 * 1000);
     }
-
+    
+    await tryRefreshToken();
+    // Make sure token is refreshed whenever it is about to expire if the page stays open for a long time
+    setInterval(tryRefreshToken, 60 * 1000);
     return !(AUTH === undefined || AUTH.token?.expireTime === undefined || AUTH.token?.expireTime <= expiredTime);
 }
 

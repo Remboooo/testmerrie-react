@@ -46,8 +46,9 @@ body {
 
 .invisible-menu-opener {
   background: #353535;
+  background: linear-gradient(180deg, rgba(53,53,53,.4) 0%, rgba(53,53,53,0) 100%);
   color: white;
-  box-shadow: 0px 8px 10px -5px rgb(0 0 0 / 20%), 0px 16px 24px 2px rgb(0 0 0 / 14%), 0px 6px 30px 5px rgb(0 0 0 / 12%);
+  /*box-shadow: 0px 8px 10px -5px rgb(0 0 0 / 20%), 0px 16px 24px 2px rgb(0 0 0 / 14%), 0px 6px 30px 5px rgb(0 0 0 / 12%);*/
   position: absolute;
   top: -3rem;
   transition: top 250ms ease 0s;
