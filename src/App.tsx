@@ -120,7 +120,7 @@ export default function App() {
 
   useEffect(() => {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
-  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream])
+  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected])
 
   /* Fullscreen toggle logic */
 
@@ -133,7 +133,10 @@ export default function App() {
   }
 
   function tryRestartAfterError() {
-    // TODO
+    let streamKey = selectedStream?.key;
+    if (streamKey !== undefined && streamManager?.isStreamAvailable(streamKey)) {
+      // TODO try restart
+    }
   }
 
 
