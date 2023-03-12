@@ -168,7 +168,9 @@ export default function OvenPlayerComponent({
                 playerRef.current.setCurrentSource(0);
                 playerRef.current.setVolume(volume);
                 playerRef.current.setMute(muted);
-                playerRef.current.play();
+                if (!paused) {
+                    playerRef.current.play();
+                }
             }
         }
     }, [playerRef.current, sources]);
@@ -179,6 +181,16 @@ export default function OvenPlayerComponent({
             playerRef.current.setMute(muted);
         }
     }, [playerRef.current, volume, muted]);
+
+    useEffect(() => {
+        if (playerRef.current) {
+            if (paused) {
+                playerRef.current.stop();
+            } else {
+                playerRef.current.play();
+            }
+        }
+    }, [playerRef.current, paused]);
 
     return(
         <div 

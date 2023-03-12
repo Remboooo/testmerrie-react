@@ -121,19 +121,20 @@ export function ChromecastSupport(props: Partial<CastContextProps>) {
 
         let warnings = []
         if (!supportedFormats["H265/2160/30"] && ["webrtc-tcp", "webrtc-udp"].indexOf(protocol) > -1) {
-            warnings.push("WebRTC gaat niet werken op jouw generatie Chromecast; we gaan voor HLS met helaas ietwat hoge latency.");
-            protocol = "hls";
+            warnings.push("WebRTC gaat niet werken op jouw generatie Chromecast; we gaan voor LLHLS met helaas iets hogere latency.");
+            protocol = "llhls";
         }
 
         if (!supportedFormats["H264/1080/60"] && ["llhls"].indexOf(protocol) > -1) {
             warnings.push("Geen idee of LLHLS gaat werken op jouw Chromecast, maar we gaan het proberen. Als het ruk is, probeer HLS.");
         }
 
-        if (!supportedFormats["H264/1080/60"] && stream.video.width > 1280 && stream.video.framerate > 30) {
-            warnings.push("Je Chromecast geeft aan geen 1080p60 te supporten, mogelijk gaat shit haperen of werkt het gewoon helemaal niet.");
-        }
+        // This warning is disabled now because we assume a 720p stream is available, configured through OME ABR functionality.
+        // if (!supportedFormats["H264/1080/60"] && stream.video.width > 1280 && stream.video.framerate > 30) {
+        //     warnings.push("Je Chromecast geeft aan geen 1080p60 te supporten, mogelijk gaat shit haperen of werkt het gewoon helemaal niet.");
+        // }
 
-        if (warnings != []) {
+        if (warnings) {
             emitWarning(warnings.join("\n\n"));
         }
         

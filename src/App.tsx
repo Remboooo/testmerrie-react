@@ -163,6 +163,7 @@ export default function App() {
             volume={volume}
             muted={muted}
             paused={ccConnected}
+            onQualityLevelChanged={(event) => {console.log(event);}}
           />
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
@@ -226,7 +227,7 @@ export default function App() {
                 screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
                 currentStream={selectedStream}
               />
-              {Object.entries(availableStreamUpdate.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
+              {!availableStreamUpdate.streamMap || Object.entries(availableStreamUpdate.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
                 <FormControlLabel control={
                   <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
                 } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
