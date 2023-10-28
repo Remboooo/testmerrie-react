@@ -21,7 +21,7 @@ export default (process.env.NODE_ENV == 'development') ?
         redirectUri: "http://localhost:3000/authcallback",
     },
     bam: {
-        uri: "https://testmerrie.nl/api"
+        uri: "http://127.0.0.1:8080"
     },
     chromecast: {
         applicationId: "64EAC1AE"

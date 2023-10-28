@@ -4,6 +4,55 @@ import config from './config';
 
 const API_BASE = config.bam.uri + "/v1";
 
+/*
+ {
+    "streams": {
+        "bam/rem": {
+            "name": "rem",
+            "streams": {
+                "abr": {
+                    "llhls": "https://testmerrie.nl/ome/bam/rem/abr.m3u8?token=xxx",
+                    "webrtc-udp": "wss://testmerrie.nl/ome/bam/rem/abr?token=xxx",
+                    "webrtc-tcp": "wss://testmerrie.nl/ome/bam/rem/abr?transport=tcp&token=xxx"
+                },
+                "1080p": {
+                    "llhls": "https://testmerrie.nl/ome/bam/rem/original.m3u8?token=xxx",
+                    "webrtc-udp": "wss://testmerrie.nl/ome/bam/rem/original?token=xxx",
+                    "webrtc-tcp": "wss://testmerrie.nl/ome/bam/rem/original?transport=tcp&token=xxx"
+                },
+                "720p": {
+                    "llhls": "https://testmerrie.nl/ome/bam/rem/720.m3u8?token=xxx",
+                    "webrtc-udp": "wss://testmerrie.nl/ome/bam/rem/720?token=xxx",
+                    "webrtc-tcp": "wss://testmerrie.nl/ome/bam/rem/720?transport=tcp&token=xxx"
+                },
+                "480p": {
+                    "llhls": "https://testmerrie.nl/ome/bam/rem/480.m3u8?token=xxx",
+                    "webrtc-udp": "wss://testmerrie.nl/ome/bam/rem/480?token=xxx",
+                    "webrtc-tcp": "wss://testmerrie.nl/ome/bam/rem/480?transport=tcp&token=xxx"
+                }
+            },
+            "created": "2023-10-27T23:01:44.366+02:00",
+            "video": {
+                "width": 1920,
+                "height": 1080,
+                "codec": "H264",
+                "bitrate": "8000000",
+                "framerate": 60.0
+            },
+            "audio": {
+                "bitrate": "160000",
+                "codec": "AAC",
+                "channels": null,
+                "samplerate": 48000
+            },
+            "thumbnail": "https://testmerrie.nl/ome/bam/rem/thumb.png?token=xxx"
+        }
+    },
+    "dbg": []
+}
+ */
+
+
 type DiscordToken = {
     accessToken: string,
     tokenType: string,  

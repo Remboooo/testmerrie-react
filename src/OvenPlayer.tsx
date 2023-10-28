@@ -19,6 +19,20 @@ export type OvenPlayerSource = {
     sectionEnd?: number;
 }
 
+export type OvenPlayerQualityLevel = {
+    bitrate: number,
+    width: number,
+    height: number,
+    index: number,
+    label: string,
+}
+
+type OvenPlayerQualityEvent = {
+    currentQuality: number, 
+    type: "request"|"render", 
+    isAuto: boolean
+}
+
 export type OvenPlayerProps = {
     className: string,
     playerOptions: OvenPlayerConfig,
@@ -35,7 +49,7 @@ export type OvenPlayerProps = {
     onVolumeChanged: (newVolumePercentage: number) => void,
     onPlaylistChanged: (newIndex: number) => void,
     onSourceChanged: (newIndexInSourcesArray: number) => void,
-    onQualityLevelChanged: (event: {currentQuality: number, type: "request"|"render", isAuto: boolean}) => void,
+    onQualityLevelChanged: (event: {currentQuality: OvenPlayerQualityLevel, type: "request"|"render", isAuto: boolean}) => void,
     onCueChanged: (vttCue: any) => void,
     onTimeDisplayModeChanged: (changedDisplayingMode: boolean) => void,
     onAdChanged: (event: {isLinear: boolean, duration: number, skipTimeOffset: number}) => void,
@@ -53,6 +67,7 @@ export type OvenPlayerProps = {
     volume: number,
     muted: boolean,
     paused: boolean,
+    reconnectOnErrorMs: number,
 };
 
 export default function OvenPlayerComponent({
@@ -89,6 +104,7 @@ export default function OvenPlayerComponent({
         volume = 100,
         muted = false,
         paused = false,
+        reconnectOnErrorMs = 1000,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = createRef<HTMLDivElement>();
     let playerRef = useRef<OvenPlayerInstance>();
@@ -102,6 +118,10 @@ export default function OvenPlayerComponent({
         if (playerRef.current) {
             playerRef.current.setVolume(volumeRef.current); 
             playerRef.current.setMute(mutedRef.current); 
+        }
+        const player = playerRef.current;
+        if (event.newstate === "error" && reconnectOnErrorMs) {
+            setTimeout(() => {if (player?.getState() === "error") player?.play()}, reconnectOnErrorMs);
         }
         onStateChanged(event);
     }, [playerRef.current, volumeRef, mutedRef]);
@@ -126,7 +146,7 @@ export default function OvenPlayerComponent({
             thePlayer.on('volumeChanged', onVolumeChanged);
             thePlayer.on('playlistChanged', onPlaylistChanged);
             thePlayer.on('sourceChanged', onSourceChanged);
-            thePlayer.on('qualityLevelChanged', onQualityLevelChanged);
+            thePlayer.on('qualityLevelChanged', (event: OvenPlayerQualityEvent) => {onQualityLevelChanged({currentQuality: thePlayer.getQualityLevels()[event.currentQuality] as OvenPlayerQualityLevel, type: event.type, isAuto: event.isAuto})});
             thePlayer.on('cueChanged', onCueChanged);
             thePlayer.on('timeDisplayModeChanged', onTimeDisplayModeChanged);
             thePlayer.on('adChanged', onAdChanged);
@@ -163,6 +183,7 @@ export default function OvenPlayerComponent({
         if (playerRef.current) {
             console.log("loading sources", sources);
             playerRef.current.stop();
+            
             if (!paused && sources.length !== 0) {
                 playerRef.current.load(sources);
                 playerRef.current.setCurrentSource(0);

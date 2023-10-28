@@ -166,7 +166,7 @@ export default function App() {
             volume={volume}
             muted={muted}
             paused={ccConnected}
-            onQualityLevelChanged={(event) => {console.log(event);}}
+            onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
           />
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}

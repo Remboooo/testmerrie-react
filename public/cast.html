@@ -45,20 +45,8 @@
 	</head>
 	<body>
 		<div id=player class=player></div>
-		<!-- <cast-media-player class=player></cast-media-player> -->
-
 		<script type="text/javascript">
-			function htmlToElement(html) {
-				var template = document.createElement('template');
-				html = html.trim(); // Never return a text node of whitespace as the result
-				template.innerHTML = html;
-				return template.content.firstChild;
-			}
-
 			let ccContext = cast.framework.CastReceiverContext.getInstance();
-
-			ccContext.setLoggerLevel(cast.framework.LoggerLevel.DEBUG); // TODO disable
-			
 			let player = null;
 			
 			function loadPlayer(stream, streamType) {
@@ -102,44 +90,17 @@
 			ccOptions.disableIdleTimeout = true;
 			const ccPlayerManager = ccContext.getPlayerManager();
 
-			// ccPlayerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequestData => {
-			// 	const error = new cast.framework.messages.ErrorData(cast.framework.messages.ErrorType.LOAD_FAILED);
-			// 	if (!loadRequestData.media) {
-			// 		error.reason = cast.framework.messages.ErrorReason.INVALID_PARAM;
-			// 		return error;
-			// 	}
-			// 	if (!loadRequestData.media.entity) {
-			// 		loadRequestData.media.entity = loadRequestData.media.contentId;
-			// 	}
-
-			// 	// Remove the chromecast player which would otherwise show a spinner thing
-			// 	// var castPlayer = document.getElementsByTagName("cast-media-player")[0];
-			// 	// castPlayer.parentNode.removeChild(castPlayer);
-
-			// 	if (loadRequestData.media.contentType == "application/webrtc") {
-			// 		loadPlayer(loadRequestData.media.entity, "webrtc");
-			// 	} else {
-			// 		loadPlayer(loadRequestData.media.entity, "hls");
-			// 	}
-				
-			// 	return null;
-				
-				
-			// 	// } else {
-			// 		// return loadRequestData;
-			// 	// }
-			// });
-
 			function getSupportedFormats() {
 				const mp4 = 'video/mp4';
 				const codecH264Lvl4Dot1 = 'avc1.640028';
 				const codecH264Lvl4Dot2 = 'avc1.64002A';
 				const codecH265 = 'hev1.1.6.L150.B0'
-				const firstGenLastSupportedOS = '1.36';
 				
 				return {
 					"H265/2160/60": ccContext.canDisplayType(mp4, codecH265, 3840, 2160, 60),
 					"H265/2160/30": ccContext.canDisplayType(mp4, codecH265, 3840, 2160, 30),
+					"H265/1080/60": ccContext.canDisplayType(mp4, codecH265, 1920, 1080, 60),
+					"H265/1080/30": ccContext.canDisplayType(mp4, codecH265, 1920, 1080, 30),
 					"H264/2160/30": ccContext.canDisplayType(mp4, codecH264Lvl4Dot2, 3840, 2160, 30),
 					"H264/1080/60": ccContext.canDisplayType(mp4, codecH264Lvl4Dot2, 1920, 1080, 60),
 					"H264/1080/30": ccContext.canDisplayType(mp4, codecH264Lvl4Dot1, 1920, 1080, 30),
