@@ -2,8 +2,8 @@ import './StreamSelector.css';
 import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { StreamMap, StreamProtocol } from './BamApi';
-import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia } from '@mui/material';
+import { StreamMap, StreamProtocol, StreamQuality } from './BamApi';
+import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia, Divider, FormControl, FormControlLabel, FormLabel, Radio, RadioGroup } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
@@ -24,13 +24,13 @@ export default function StreamSelector(props: StreamSelectorProps) {
         currentStream,
     } = props;
 
-    function selectStream(stream: string|null, protocol: StreamProtocol|null) {
+    function selectStream(stream: string|null, protocol: StreamProtocol|null, quality: StreamQuality|null) {
         var newSelection: StreamSelectionRequest;
         
-        if (stream === null || (stream == currentStream?.key && (protocol == currentStream?.protocol || protocol === null))) {
+        if (stream === null || (stream == currentStream?.key && (quality == currentStream?.quality || quality === null))) {
             newSelection = NO_SELECTION;
         } else {
-            newSelection = {key: stream, protocol: protocol};
+            newSelection = {key: stream, protocol, quality};
         }
         console.log("select stream", newSelection);
         onStreamRequested(newSelection);
@@ -66,7 +66,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                     className={isSelected ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
-                        onClick={() => isSelected ? selectStream(null, null) : selectStream(key, null)}
+                        onClick={() => isSelected ? selectStream(null, null, null) : selectStream(key, null, null)}
                     >
                         {media}
                         <CardContent>
@@ -80,16 +80,17 @@ export default function StreamSelector(props: StreamSelectorProps) {
                         </CardContent>
                     </CardActionArea>
                     <CardActions>
-                    {Object.entries(props.streams["abr"]).map(([protocolString, url], i) => {
-                        const protocol = protocolString as StreamProtocol; // for some reason Object.entries(T) returns [string, string] tuples in stead of [keyof T, string]
-                        const isSelectedProtocol = isSelected && currentStream?.protocol === protocol;
+                    {Object.entries(props.streams).map(([qualityString, protocolMap], i) => {
+                        const quality = qualityString as StreamQuality; // for some reason Object.entries(T) returns [string, string] tuples in stead of [keyof T, string]
+                        
+                        const isSelectedQuality = isSelected && currentStream?.quality === quality;
                         return <Button 
-                            key={protocol} 
-                            variant={isSelectedProtocol ? "contained" : "text"}
+                            key={quality} 
+                            variant={isSelectedQuality ? "contained" : "text"}
                             size="small"
-                            onClick={() => selectStream(key, protocol)}
+                            onClick={() => selectStream(key, null, quality)}
                         >
-                            {protocol.replace("-", " ")}
+                            {quality}
                         </Button>
                     })}
                     </CardActions>
@@ -98,7 +99,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
         });
     } 
 
-    return (    
+    return (
         <Box 
             sx={{
                 p: 1, 

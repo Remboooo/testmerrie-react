@@ -5,14 +5,14 @@ import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayer
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { AvailableStreamUpdate, StreamManager, StreamSelection } from './StreamManager';
+import { AvailableStreamUpdate, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp, Person } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -21,12 +21,11 @@ import Button from '@mui/material/Button';
 import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
-import { DialogActions, DialogContent, DialogContentText, DialogTitle, Link } from '@mui/material';
+import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, Icon, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
-  "hls": "hls",
   "llhls": "llhls",
   "webrtc-udp": "webrtc",
   "webrtc-tcp": "webrtc",
@@ -35,13 +34,14 @@ const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceTyp
 function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): OvenPlayerSource[] {
   return selection === null ? [] : [{
     type: PROTOCOL_TO_OVENPLAYER_TYPE[selection.protocol],
-    file: selection.stream.streams["abr"][selection.protocol] as string
+    file: selection.stream.streams[selection.quality][selection.protocol] as string
   }]
 }
 
 export default function App() {
   const [availableStreamUpdate, setAvailableStreamUpdate] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
+  const [selectedProtocol, setSelectedProtocol] = useState<StreamProtocol>(() => {const v = localStorage.getItem("protocol"); return v === null ? "webrtc-udp" : v as StreamProtocol;});
   const [sourcesList, setSourcesList] = useState<OvenPlayerSource[]>([]);
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
@@ -70,6 +70,10 @@ export default function App() {
   useEffect(() => {localStorage.setItem("muted", '' + muted);}, [muted]);
 
   useEffect(() => {localStorage.setItem("volume", '' + volume);}, [volume]);
+
+  useEffect(() => {localStorage.setItem("protocol", '' + selectedProtocol);}, [selectedProtocol]);
+
+  useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
   useEffect(() => {
     streamManager?.setAvailableStreamListener(setAvailableStreamUpdate);
@@ -225,7 +229,10 @@ export default function App() {
                 onMouseOut={() => {setMouseOnDrawer(false);}}
             >
               <StreamSelector 
-                onStreamRequested={(selection) => streamManager?.requestStreamSelection(selection)}
+                onStreamRequested={(selection: StreamSelectionRequest) => {
+                  selection.protocol = selectedProtocol;
+                  streamManager?.requestStreamSelection(selection)
+                }}
                 streams={availableStreamUpdate.streamMap}
                 screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
                 currentStream={selectedStream}
@@ -250,6 +257,25 @@ export default function App() {
                     <VolumeUp />
                   </Stack>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                    <FormControl size="small">
+                      <InputLabel id="demo-select-small-label">Protocol</InputLabel>
+                      <Select
+                        labelId="demo-simple-select-label"
+                        id="demo-simple-select"
+                        value={selectedProtocol}
+                        label="Protocol"
+                        sx={{width: '10em'}}
+                        onChange={(event: SelectChangeEvent) => {
+                          setSelectedProtocol(event.target.value as StreamProtocol);
+                        }}
+                      >
+                        <MenuItem value="llhls">LLHLS</MenuItem>
+                        <MenuItem value="webrtc-udp">WebRTC (UDP)</MenuItem>
+                        <MenuItem value="webrtc-tcp">WebRTC (TCP)</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox 
                       onClick={() => toggleFullscreen()}
                       checked={!!window.document.fullscreenElement}
@@ -258,11 +284,12 @@ export default function App() {
                     />
                     <ChromecastButton />
                   </Stack>
+                  
                 </Box>
                 <Box sx={{margin: "1em", display: 'inline-flex', justifyContent: 'center', alignItems: 'center'}}>
                   <Box sx={{flexGrow: 1}}>
                     {userInfo ? (
-                      <div>Hello {userInfo?.user?.username} 👋</div>
+                      <div>{userInfo?.user?.username}</div>
                     ) : ''}
                   </Box>
                   <IconButton onClick={logout}><Logout /></IconButton>

@@ -7,9 +7,10 @@ const DEFAULT_PROTOCOL = "webrtc-udp";
 export type StreamSelectionRequest = {
     key: string|null,
     protocol: StreamProtocol|null, 
+    quality: StreamQuality|null,
 };
 
-export const NO_SELECTION: StreamSelectionRequest = {key: null, protocol: null};
+export const NO_SELECTION: StreamSelectionRequest = {key: null, protocol: null, quality: null};
 
 export type StreamSelection = {
     key: string,
@@ -93,18 +94,40 @@ export class StreamManager {
         this.selectedStreamListener(this.selectedStream);
     }
 
+    requestProtocolChange(protocol: StreamProtocol|null) {
+        if (this.selectedStream === null) {
+            return;
+        }
+
+        if (protocol === null || !(protocol in this.selectedStream.stream.streams[this.selectedStream.quality])) {
+            protocol = DEFAULT_PROTOCOL;
+        }
+
+        this.selectedStream = {key: this.selectedStream.key, stream: this.selectedStream.stream, quality: this.selectedStream.quality, protocol};
+        this.selectedStreamListener(this.selectedStream);
+    }
+
     requestStreamSelection(request: StreamSelectionRequest) {
         if (request.key === null || !(request.key in this.availableStreams)) {
             this.selectedStream = null;
         } else {
             const stream = this.availableStreams[request.key];
+            const defaultQuality = Object.keys(stream.streams)[0];
+            var quality: StreamQuality;
+            if (request.quality !== null && request.quality in stream.streams) {
+                quality = request.quality;
+            } else {
+                quality = defaultQuality;
+            }
+
             var protocol: StreamProtocol;
-            if (request.protocol !== null && request.protocol in stream.streams["abr"]) {
+            if (request.protocol !== null && request.protocol in stream.streams[quality]) {
                 protocol = request.protocol;
             } else {
                 protocol = DEFAULT_PROTOCOL;
             }
-            this.selectedStream = {key: request.key, stream: stream, protocol: protocol, quality: "abr"};
+            
+            this.selectedStream = {key: request.key, stream, protocol, quality};
         }
         this.selectedStreamListener(this.selectedStream);
     }
