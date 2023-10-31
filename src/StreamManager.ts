@@ -1,5 +1,5 @@
 import { useSnackbar } from "notistack";
-import { getStreams, StreamMap, StreamProtocol, StreamSpec } from "./BamApi";
+import { getStreams, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
@@ -14,6 +14,7 @@ export const NO_SELECTION: StreamSelectionRequest = {key: null, protocol: null};
 export type StreamSelection = {
     key: string,
     stream: StreamSpec,
+    quality: StreamQuality,
     protocol: StreamProtocol, 
 } | null;
 
@@ -49,9 +50,6 @@ export class StreamManager {
             this.checkAutoStart();
         }).catch(reason => {
             console.log("failed to get streams", reason);
-            // TODO remove me testing
-            this.availableStreams = {"test": {name: "test", streams: {main: {protocols: {}}}, created: "2022-08-07T01:02:03Z", video: {width: 1, height: 2, framerate: 3, codec: "aids", bitrate: 3}, audio: {channels: 1, codec: "aids", bitrate: 2, samplerate: 3}}}
-            this.availableStreamListener({streamMap: this.availableStreams, refreshTimestamp: this.refreshTimestamp});
         });
     }
 
@@ -59,7 +57,7 @@ export class StreamManager {
         if (this._autoStart) {
             const streamEntries = Object.entries(this.availableStreams);
             if (this.selectedStream === null && streamEntries.length > 0) {
-                this.selectedStream = {key: streamEntries[0][0], stream: streamEntries[0][1], protocol: DEFAULT_PROTOCOL};
+                this.selectedStream = {key: streamEntries[0][0], stream: streamEntries[0][1], protocol: DEFAULT_PROTOCOL, quality: "abr"};
                 this.selectedStreamListener(this.selectedStream);
             }
         }
@@ -101,12 +99,12 @@ export class StreamManager {
         } else {
             const stream = this.availableStreams[request.key];
             var protocol: StreamProtocol;
-            if (request.protocol !== null && request.protocol in stream.streams.main.protocols) {
+            if (request.protocol !== null && request.protocol in stream.streams["abr"]) {
                 protocol = request.protocol;
             } else {
                 protocol = DEFAULT_PROTOCOL;
             }
-            this.selectedStream = {key: request.key, stream: stream, protocol: protocol};
+            this.selectedStream = {key: request.key, stream: stream, protocol: protocol, quality: "abr"};
         }
         this.selectedStreamListener(this.selectedStream);
     }

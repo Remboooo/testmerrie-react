@@ -80,7 +80,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                         </CardContent>
                     </CardActionArea>
                     <CardActions>
-                    {Object.entries(props.streams.main.protocols).map(([protocolString, url], i) => {
+                    {Object.entries(props.streams["abr"]).map(([protocolString, url], i) => {
                         const protocol = protocolString as StreamProtocol; // for some reason Object.entries(T) returns [string, string] tuples in stead of [keyof T, string]
                         const isSelectedProtocol = isSelected && currentStream?.protocol === protocol;
                         return <Button 

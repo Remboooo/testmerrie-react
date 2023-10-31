@@ -35,7 +35,7 @@ const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceTyp
 function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): OvenPlayerSource[] {
   return selection === null ? [] : [{
     type: PROTOCOL_TO_OVENPLAYER_TYPE[selection.protocol],
-    file: selection.stream.streams.main.protocols[selection.protocol] as string
+    file: selection.stream.streams["abr"][selection.protocol] as string
   }]
 }
 

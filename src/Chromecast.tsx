@@ -118,7 +118,7 @@ export function ChromecastSupport(props: Partial<CastContextProps>) {
             return undefined;
         }
         let stream = selection.stream;
-        let streamVariant = selection.stream.streams.main;
+        let streamVariant = stream.streams[selection.quality];
         let protocol = selection.protocol;
 
         console.log("Supported formats", supportedFormats);
@@ -142,7 +142,7 @@ export function ChromecastSupport(props: Partial<CastContextProps>) {
             emitWarning(warnings.join("\n\n"));
         }
         
-        return {query: "play", url: streamVariant.protocols[protocol] as string, protocol: PROTOCOL_TO_OVENPLAYER_TYPE[protocol]};
+        return {query: "play", url: streamVariant[protocol] as string, protocol: PROTOCOL_TO_OVENPLAYER_TYPE[protocol]};
     }
 
     useEffect(testCcAvailable, []);

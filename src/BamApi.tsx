@@ -100,16 +100,14 @@ export type StreamProtocolUrlMap = {
 export type StreamProtocol = keyof StreamProtocolUrlMap;
 
 export type StreamQualityMap = {
-    main: StreamProtocolUrlMap,
+    [key: string]: StreamProtocolUrlMap,
 }
+
+export type StreamQuality = keyof StreamQualityMap;
 
 export type StreamSpec = {
     name: string,
-    streams: {
-        main: {
-            protocols: StreamProtocolUrlMap
-        }
-    },
+    streams: StreamQualityMap,
     created: string,
     video: VideoStreamParams,
     audio: AudioStreamParams,
