@@ -93,11 +93,11 @@ export function ChromecastSupport(props: Partial<CastContextProps>) {
     }
 
     function emitWarning(warning: string|undefined, variant: VariantType = 'warning') {
-        console.warn("Chromecast: ", warning);
         if (statusSnackbar.current !== undefined) {
             closeSnackbar(statusSnackbar.current);
         }
         if (warning !== undefined) {
+            console.warn("Chromecast: ", warning);
             statusSnackbar.current = enqueueSnackbar(warning, {persist: true, variant, style: {whiteSpace: 'pre-line'}});
         } else {
             statusSnackbar.current = undefined;
