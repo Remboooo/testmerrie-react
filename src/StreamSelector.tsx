@@ -16,6 +16,10 @@ export type StreamSelectorProps = {
     currentStream: StreamSelection,
 };
 
+const qualityNames = new Map<string, string>([
+    ["abr", "auto"],
+]);
+
 export default function StreamSelector(props: StreamSelectorProps) {
     const {
         streams,
@@ -90,7 +94,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                             size="small"
                             onClick={() => selectStream(key, null, quality)}
                         >
-                            {quality}
+                            {qualityNames.get('' + quality) || quality}
                         </Button>
                     })}
                     </CardActions>
