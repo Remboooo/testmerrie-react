@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { StreamMap, StreamProtocol, StreamQuality } from './BamApi';
-import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia, Divider, FormControl, FormControlLabel, FormLabel, Radio, RadioGroup } from '@mui/material';
+import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia, Divider, FormControl, FormControlLabel, FormLabel, Link, Radio, RadioGroup } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import theme from './theme';
+import { useSnackbar } from 'notistack';
 
 export type StreamSelectorProps = {
     streams: StreamMap,
@@ -27,6 +28,8 @@ export default function StreamSelector(props: StreamSelectorProps) {
         onStreamRequested,
         currentStream,
     } = props;
+
+    const { enqueueSnackbar, } = useSnackbar();
 
     function selectStream(stream: string|null, protocol: StreamProtocol|null, quality: StreamQuality|null) {
         var newSelection: StreamSelectionRequest;

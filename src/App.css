@@ -169,3 +169,9 @@ div.cast-overlay {
 .error .op-ui {
   visibility: visible;
 }
+
+.SnackbarItem-variantWarning a {
+  text-decoration: none;
+  font-weight: bold;
+  color: #750039 !important;
+}

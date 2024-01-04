@@ -147,11 +147,28 @@ export default function App() {
 
   useEffect(() => {
     console.log("new state", playerState);
-
     if (playerState === "error") {
       setTimeout(tryRestartAfterError, 1000);
     }
   }, [playerState]);
+
+  // Only enable stream updates when drawer is open; causes lag when updating on my garbage machine
+  useEffect(() => {
+    if (drawerOpen) {
+      streamManager?.startUpdates();
+    } else {
+      streamManager?.stopUpdates();
+    }
+  }, [streamManager, drawerOpen]);
+
+  // Issue a warning for broken ABR implementations
+  useEffect(() => {
+    if (['abr', 'auto'].some(v => selectedStream?.quality === v) && !!window.chrome) {
+        enqueueSnackbar(<>
+            ABR werkt slecht in Chrome, zie&nbsp;<Link target="_blank" href="https://github.com/AirenSoft/OvenMediaEngine/discussions/1066#discussioncomment-7902333">dit issue</Link>
+        </>, {persist: false, variant: 'warning'});
+    }
+}, [selectedStream]);
 
   return (
     <div className={"App " + playerState + (ccConnected ? " casting" : "")}>

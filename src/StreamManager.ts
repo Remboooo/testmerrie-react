@@ -38,11 +38,7 @@ export class StreamManager {
     // WebRTC.js:107 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
     // private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
     private _autoStart: boolean = false;
-  
-    constructor() {
-        this.startUpdates();
-    }
-  
+    
     private updateStreamsOnce() {
         return getStreams().then(streams => {
             this.refreshTimestamp = Date.now();
@@ -65,20 +61,21 @@ export class StreamManager {
     }
   
     startUpdates() {
-        if (!this.scheduledUpdate) {
+        if (this.scheduledUpdate === null) {
             this.scheduledUpdate = setInterval(() => this.updateStreamsOnce(), UPDATE_INTERVAL);
             this.updateStreamsOnce();
         }
     }
   
     stopUpdates() {
-        if (this.scheduledUpdate) {
+        if (this.scheduledUpdate !== null) {
             clearInterval(this.scheduledUpdate);
+            this.scheduledUpdate = null;
         }
     }
 
     updateNow() {
-        if (this.scheduledUpdate) {
+        if (this.scheduledUpdate !== null) {
             this.scheduledUpdate.refresh();
         }
         this.updateStreamsOnce();
