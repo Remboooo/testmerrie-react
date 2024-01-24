@@ -57,3 +57,9 @@
     background-color: #4c6e89 !important;
     transition: all 2s ease;
 }
+
+.thumbnail {
+  height: 140px;
+  background: rgba(0, 0, 0, 0.15);
+  position: relative;
+}

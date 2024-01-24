@@ -1,5 +1,5 @@
 import './StreamSelector.css';
-import { useEffect, useState } from 'react';
+import { SyntheticEvent, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { StreamMap, StreamProtocol, StreamQuality } from './BamApi';
@@ -62,7 +62,14 @@ export default function StreamSelector(props: StreamSelectorProps) {
                 media = (<CardMedia
                     component="img"
                     height="140"
+                    className="thumbnail"
                     src={props.thumbnail + "&" + screenshotTimestamp}
+                    onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                        (e.target as HTMLImageElement).src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+                      }}
+                    // onLoad={(e: SyntheticEvent<HTMLImageElement>) => {
+                    //     (e.target as HTMLImageElement).style.visibility = "visible";
+                    //   }}
                 />);
             }
             const isSelected = currentStream?.key === key;
