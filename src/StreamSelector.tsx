@@ -66,10 +66,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                     src={props.thumbnail + "&" + screenshotTimestamp}
                     onError={(e: SyntheticEvent<HTMLImageElement>) => {
                         (e.target as HTMLImageElement).src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-                      }}
-                    // onLoad={(e: SyntheticEvent<HTMLImageElement>) => {
-                    //     (e.target as HTMLImageElement).style.visibility = "visible";
-                    //   }}
+                    }}
                 />);
             }
             const isSelected = currentStream?.key === key;

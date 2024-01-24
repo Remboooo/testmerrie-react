@@ -175,3 +175,7 @@ div.cast-overlay {
   font-weight: bold;
   color: #750039 !important;
 }
+
+.MuiDrawer-paper {
+  background-color: rgba(0,0,0,0.8) !important;
+}

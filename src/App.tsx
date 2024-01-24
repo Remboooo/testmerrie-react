@@ -1,6 +1,6 @@
 import './App.css';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
@@ -12,7 +12,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp, Person } from '@mui/icons-material';
+import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -21,7 +21,7 @@ import Button from '@mui/material/Button';
 import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
-import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, Icon, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
+import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -38,11 +38,16 @@ function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): Oven
   }]
 }
 
+type SourcesList = {
+  sources: OvenPlayerSource[],
+  isPlaceholder: boolean
+}
+
 export default function App() {
   const [availableStreamUpdate, setAvailableStreamUpdate] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [selectedProtocol, setSelectedProtocol] = useState<StreamProtocol>(() => {const v = localStorage.getItem("protocol"); return v === null ? "webrtc-udp" : v as StreamProtocol;});
-  const [sourcesList, setSourcesList] = useState<OvenPlayerSource[]>([]);
+  const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
@@ -84,19 +89,36 @@ export default function App() {
   }, [streamManager, setSelectedStream]);
 
   useEffect(() => {
-    setSourcesList(streamSelectionToOvenPlayerSourceList(selectedStream));
+    var selection: OvenPlayerSource[];
+
+    if (selectedStream !== null) {
+      setSourcesList({
+        sources: streamSelectionToOvenPlayerSourceList(selectedStream),
+        isPlaceholder: false
+      });
+    } else {
+      setSourcesList({
+        sources: [{
+          type: "mp4",
+          file: "https://testmerrie.nl/treinen.mp4"
+        }], 
+        isPlaceholder: true
+      });
+    }
+    
   }, [selectedStream, setSourcesList]);
+
 
   /* Drawer open/close logic */
 
-  function clearMouseOnVideoTimeout() {
+  let clearMouseOnVideoTimeout = useCallback(() => {
     if (mouseOnDrawerOpenerTimeout.current !== undefined) {
       clearTimeout(mouseOnDrawerOpenerTimeout.current);
       mouseOnDrawerOpenerTimeout.current = undefined;
     }
-  }
+  }, [mouseOnDrawerOpenerTimeout]);
 
-  function mouseOnVideoAction() {
+  let mouseOnVideoAction = useCallback(() => {
     if (mouseMovingTimeout.current) {
       clearTimeout(mouseMovingTimeout.current);
     }
@@ -105,19 +127,19 @@ export default function App() {
       setMouseVisibleOnVideo(false);
     }, MOUSE_ON_VIDEO_TIMEOUT);
     setMouseVisibleOnVideo(true);
-  }
+  }, [mouseMovingTimeout]);
   
-  function mouseDrawerOpenerAction() {
+  let mouseDrawerOpenerAction = useCallback(() => {
     clearMouseOnVideoTimeout();
     setMouseActiveOnDrawerOpener(true);
     setDrawerOpen(true);
     mouseOnDrawerOpenerTimeout.current = setTimeout(() => setMouseActiveOnDrawerOpener(false), MOUSE_ON_VIDEO_TIMEOUT);
-  }
+  }, [clearMouseOnVideoTimeout, mouseOnDrawerOpenerTimeout]);
 
-  function openDrawerWithoutTimeout() {
+  let openDrawerWithoutTimeout = useCallback(() => {
     clearMouseOnVideoTimeout();
     setDrawerOpen(true);
-  }
+  }, [clearMouseOnVideoTimeout]);
 
   const userWantsDrawer = mouseOnDrawer || mouseActiveOnDrawerOpener;
   const userNeedsDrawer = selectedStream === null || ccConnected;
@@ -128,20 +150,20 @@ export default function App() {
 
   /* Fullscreen toggle logic */
 
-  function toggleFullscreen() {
+  let toggleFullscreen = useCallback(() => {
     if (window.document.fullscreenElement) {
       window.document.exitFullscreen();
     } else {
       window.document.getElementsByTagName("body")[0].requestFullscreen();
     }
-  }
+  }, []);
 
-  function tryRestartAfterError() {
+  let tryRestartAfterError = useCallback(() => {
     let streamKey = selectedStream?.key;
     if (streamKey !== undefined && streamManager?.isStreamAvailable(streamKey)) {
       // TODO try restart
     }
-  }
+  }, [selectedStream, streamManager]);
 
 
 
@@ -182,11 +204,12 @@ export default function App() {
           <OvenPlayerComponent
             onClicked={() => {}}
             onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
-            sources={sourcesList}
+            sources={sourcesList.sources}
             playerOptions={{autoStart: true, controls: false}}
             volume={volume}
-            muted={muted}
+            muted={muted || sourcesList.isPlaceholder}
             paused={ccConnected}
+            startAtRandomOffset={sourcesList.isPlaceholder}
             onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
           />
           <div 
