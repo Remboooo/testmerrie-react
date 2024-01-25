@@ -15,6 +15,7 @@ export type StreamSelectorProps = {
     screenshotTimestamp: number,
     onStreamRequested: (selection: StreamSelectionRequest) => void,
     currentStream: StreamSelection,
+    streamEnded: boolean,
 };
 
 const qualityNames = new Map<string, string>([
@@ -27,6 +28,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
         screenshotTimestamp,
         onStreamRequested,
         currentStream,
+        streamEnded,
     } = props;
 
     const { enqueueSnackbar, } = useSnackbar();
@@ -50,11 +52,19 @@ export default function StreamSelector(props: StreamSelectorProps) {
         </Box>
     }
     else if (Object.entries(streams).length === 0) {
-        content = <Box className="waiting-box">
-            <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="waiting" /><br />
-            <Typography variant="body1">Je moet nog even iemand schoppen om te gaan streamen.</Typography>
-            <Typography variant="body2">Of zelf doen. Maar dan zou je naar jezelf moeten gaan kijken en dat zou dan weer raar zijn.</Typography>
-        </Box>
+        if (streamEnded) {
+            content = <Box className="waiting-box">
+                <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="waiting" /><br />
+                <Typography variant="body1">De stream die je aan het kijken was is er helemaal klaar mee.</Typography>
+                <Typography variant="body2">Tijd voor een nieuw spelletje?</Typography>
+            </Box>
+        } else {
+            content = <Box className="waiting-box">
+                <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="waiting" /><br />
+                <Typography variant="body1">Je moet nog even iemand schoppen om te gaan streamen.</Typography>
+                <Typography variant="body2">Of zelf doen. Maar dan zou je naar jezelf moeten gaan kijken en dat zou dan weer raar zijn.</Typography>
+            </Box>
+        }
     } else {
         content = Object.entries(streams).map(([key, props], i) => {
             var media;
@@ -112,6 +122,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
 
     return (
         <Box 
+            className="stream-selector"
             sx={{
                 p: 1, 
                 width: '100%',

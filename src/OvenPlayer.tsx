@@ -67,13 +67,12 @@ export type OvenPlayerProps = {
     volume: number,
     muted: boolean,
     paused: boolean,
-    reconnectOnErrorMs: number | null,
     startAtRandomOffset: boolean,
 };
 
 export default function OvenPlayerComponent({
         className = "",
-        playerOptions = {autoStart: true},
+        playerOptions = {autoStart: true, loop: true},
         onReady = () => {},
         onMetaChanged = () => {},
         onStateChanged = (state) => {},
@@ -105,7 +104,6 @@ export default function OvenPlayerComponent({
         volume = 100,
         muted = false,
         paused = false,
-        reconnectOnErrorMs = null,
         startAtRandomOffset = false,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
@@ -114,14 +112,18 @@ export default function OvenPlayerComponent({
     let volumeRef = useRef<number>(volume);
     let mutedRef = useRef<boolean>(muted);
     let startAtRandomOffsetRef = useRef<boolean>(startAtRandomOffset);
+    let onStateChangedRef = useRef(onStateChanged);
+    let onQualityLevelChangedRef = useRef(onQualityLevelChanged);
 
     let [loadedSources, setLoadedSources] = useState<OvenPlayerSource[]>([]);
 
-    let seekedToRandom = useRef<boolean>();
+    let seekedToRandomRef = useRef<boolean>();
 
     volumeRef.current = volume;
     mutedRef.current = muted;
     startAtRandomOffsetRef.current = startAtRandomOffset;
+    onStateChangedRef.current = onStateChanged;
+    onQualityLevelChangedRef.current = onQualityLevelChanged;
 
     const stateChangedCallback = useCallback((event: {prevstate: OvenPlayerState, newstate: OvenPlayerState}) => {
         if (playerRef.current) {
@@ -129,36 +131,31 @@ export default function OvenPlayerComponent({
             playerRef.current.setMute(mutedRef.current); 
         }
         const player = playerRef.current;
-        if (event.newstate === "error" && reconnectOnErrorMs) {
-            setTimeout(() => {if (player?.getState() === "error") player?.play()}, reconnectOnErrorMs);
-        }
-
-
         const startAtRandomOffset = startAtRandomOffsetRef.current;
         if (player && event.prevstate === "loading" && event.newstate === "playing") {
-            if ((!startAtRandomOffset) || (startAtRandomOffset && seekedToRandom.current)) {
-                console.log("VISIBLE");
-                console.log(containerElementRef);
+            if ((!startAtRandomOffset) || (startAtRandomOffset && seekedToRandomRef.current)) {
                 if (containerElementRef.current) {
-                    console.log("YASE");
-                    containerElementRef.current.style.visibility = "visible"
+                    containerElementRef.current.classList.remove("loading-content");
                 };
             }
 
-            if (startAtRandomOffset && !seekedToRandom.current) {
-                seekedToRandom.current = true;
-                setTimeout(() => player.seek(Math.round(player.getDuration() * Math.random())));
+            if (startAtRandomOffset && !seekedToRandomRef.current) {
+                seekedToRandomRef.current = true;
+                let pos = (Date.now() * 1e-3) % player.getDuration();
+                console.log("Seek to " + pos + " / " + player.getDuration());
+                setTimeout(() => player.seek(pos));
             }
         }
 
-        onStateChanged(event);
-    }, [playerRef, volumeRef, mutedRef, startAtRandomOffsetRef, containerElementRef, onStateChanged, seekedToRandom]);
+        onStateChangedRef.current(event);
+    }, []);
 
-    function createPlayer() {
+    let createPlayer = useCallback(() => {
         if (playerElementRef.current === null) {
             console.error("No player div found");
             return;
         }
+        console.log("create player");
         if (playerRef.current == null && playerElementRef.current != null) {
             let thePlayer = OvenPlayer.create(playerElementRef.current, playerOptions);
             thePlayer.on('ready', onReady);
@@ -174,7 +171,7 @@ export default function OvenPlayerComponent({
             thePlayer.on('volumeChanged', onVolumeChanged);
             thePlayer.on('playlistChanged', onPlaylistChanged);
             thePlayer.on('sourceChanged', onSourceChanged);
-            thePlayer.on('qualityLevelChanged', (event: OvenPlayerQualityEvent) => {onQualityLevelChanged({currentQuality: thePlayer.getQualityLevels()[event.currentQuality] as OvenPlayerQualityLevel, type: event.type, isAuto: event.isAuto})});
+            thePlayer.on('qualityLevelChanged', (event: OvenPlayerQualityEvent) => {onQualityLevelChangedRef.current({currentQuality: thePlayer.getQualityLevels()[event.currentQuality] as OvenPlayerQualityLevel, type: event.type, isAuto: event.isAuto})});
             thePlayer.on('cueChanged', onCueChanged);
             thePlayer.on('timeDisplayModeChanged', onTimeDisplayModeChanged);
             thePlayer.on('adChanged', onAdChanged);
@@ -190,14 +187,19 @@ export default function OvenPlayerComponent({
             thePlayer.on('destroy', onDestroy);
             playerRef.current = thePlayer;
         }
-    }
+    }, [playerOptions]);
 
-    function destroy() {
+    let destroy = useCallback(() => {
+        console.log("destroy player");
         if (playerRef.current) {
-            playerRef.current.remove();
+            try {
+                playerRef.current.remove();
+            } catch (e) {
+                console.log("destroying player failed:", e);
+            }
             playerRef.current = undefined;
         }
-    }
+    }, []);
 
     useEffect(() => {
         return destroy;
@@ -208,41 +210,43 @@ export default function OvenPlayerComponent({
     }, [playerElementRef])
 
     useEffect(() => {
-        console.log("new player, clearing loaded sources")
         setLoadedSources([]);
     }, [playerRef])
 
     useEffect(() => {
-        if (playerRef.current) {
-            console.log("loading sources", sources);
-            console.log("loaded sources", loadedSources);
-            playerRef.current.stop();
+        if (playerRef.current == null) {
+            console.log("ERROR: NO PLAYER CREATED");
+            return;
+        }
+
+        if (loadedSources != sources) {
+            if (sources.length !== 0) {
+                // Workaround: somehow the player does not transition to 'loading' immediately for WebRTC
+                console.log("loading sources", sources)
+                onStateChanged({prevstate: "idle", newstate: "loading"});
+                if (containerElementRef.current) {
+                    containerElementRef.current.classList.add("loading-content");
+                };
+                seekedToRandomRef.current = false;
+                playerRef.current.load([{type: "mp4", file: ""}]);
+                playerRef.current.load(sources);
+                playerRef.current.setCurrentSource(0);
+            } else {
+                console.log("stopping");
+                playerRef.current.stop();
+            }
             
-            if (containerElementRef.current) {
-                console.log("HIBBEM");
-                console.log(containerElementRef);
-                containerElementRef.current.style.visibility = "hidden"
-            };
+            setLoadedSources(sources);
+            
+            playerRef.current.setVolume(volume);
+            playerRef.current.setMute(muted);
             
             if (!paused && sources.length !== 0) {
-                // Workaround: somehow the player does not transition to 'loading' immediately for WebRTC
-                onStateChanged({prevstate: "idle", "newstate": "loading"});
-                
-                if (loadedSources != sources) {
-                    console.log("loading into player")
-                    seekedToRandom.current = false;
-                    playerRef.current.load(sources);
-                    playerRef.current.setCurrentSource(0);
-                    setLoadedSources(sources);
-                }
-                playerRef.current.setVolume(volume);
-                playerRef.current.setMute(muted);
-                if (!paused) {
-                    playerRef.current.play();
-                }
+                console.log("playing");
+                playerRef.current.play();
             }
         }
-    }, [playerRef, sources, loadedSources]);
+    }, [playerRef, paused, sources, loadedSources, createPlayer]);
 
     useEffect(() => {
         if (playerRef.current) {

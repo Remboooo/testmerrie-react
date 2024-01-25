@@ -5,15 +5,22 @@ export type DiscordConfig = {
 
 export type BamApiConfig = {
     uri: string,
+    idleVideo: string|null,
 };
+
+export type ChromecastConfig = {
+    applicationId: string,
+}
 
 export type BamConfig = {
     discord: DiscordConfig,
     bam: BamApiConfig,
+    chromecast: ChromecastConfig,
 };
 
 
-export default (process.env.NODE_ENV == 'development') ? 
+
+let config: BamConfig = (process.env.NODE_ENV == 'development') ? 
 // DEVELOPMENT
 {
     discord: {
@@ -21,7 +28,8 @@ export default (process.env.NODE_ENV == 'development') ?
         redirectUri: "http://localhost:3000/authcallback",
     },
     bam: {
-        uri: "https://testmerrie.nl/api"
+        uri: "https://testmerrie.nl/api",
+        idleVideo: null//"https://testmerrie.nl/treinen.mp4",
     },
     chromecast: {
         applicationId: "64EAC1AE"
@@ -34,9 +42,12 @@ export default (process.env.NODE_ENV == 'development') ?
         redirectUri: "https://testmerrie.nl/authcallback",
     },
     bam: {
-        uri: "https://testmerrie.nl/api"
+        uri: "https://testmerrie.nl/api",
+        idleVideo: null//"https://testmerrie.nl/treinen.mp4",
     },
     chromecast: {
         applicationId: "64EAC1AE"
     },
 };
+
+export default config;

@@ -1,6 +1,6 @@
 /* @media (prefers-reduced-motion: no-preference) { */
     .waiting-icon {
-        animation: heartbeat infinite .75s linear;
+        animation: heartbeat infinite 1.0s linear;
     }
 /* } */
 
@@ -17,34 +17,6 @@
     width: 5em;
 }
 
-@keyframes heartbeat
-{
-  0%
-  {
-    transform: scale( .75 );
-  }
-  20%
-  {
-    transform: scale( 1 );
-  }
-  40%
-  {
-    transform: scale( .85 );
-  }
-  60%
-  {
-    transform: scale( 1 );
-  }
-  80%
-  {
-    transform: scale( .8 );
-  }
-  100%
-  {
-    transform: scale( .75 );
-  }
-}
-
 .waiting-icon {
     height: 5em;
 }
@@ -59,7 +31,7 @@
 }
 
 .thumbnail {
-  height: 140px;
+  height: 150px;
   background: rgba(0, 0, 0, 0.15);
   position: relative;
 }

@@ -5,7 +5,7 @@ import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayer
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { AvailableStreamUpdate, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { AvailableStreamUpdate, NO_SELECTION, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
@@ -22,6 +22,7 @@ import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
 import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
+import config from './config';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -44,7 +45,7 @@ type SourcesList = {
 }
 
 export default function App() {
-  const [availableStreamUpdate, setAvailableStreamUpdate] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
+  const [availableStreams, setAvailableStreams] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [selectedProtocol, setSelectedProtocol] = useState<StreamProtocol>(() => {const v = localStorage.getItem("protocol"); return v === null ? "webrtc-udp" : v as StreamProtocol;});
   const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
@@ -57,6 +58,11 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
+  const [streamEnded, setStreamEnded] = useState<boolean>(false);
+  const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
+
+  const playerWasUsedRef = useRef<boolean>(false);
+
   const [logout, setLogout] = useState<() => void>();
 
   const mouseOnDrawerOpenerTimeout = useRef<ReturnType<typeof setTimeout>|undefined>();
@@ -81,8 +87,8 @@ export default function App() {
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
   useEffect(() => {
-    streamManager?.setAvailableStreamListener(setAvailableStreamUpdate);
-  }, [streamManager, setAvailableStreamUpdate]);
+    streamManager?.setAvailableStreamListener(setAvailableStreams);
+  }, [streamManager, setAvailableStreams]);
 
   useEffect(() => {
     streamManager?.setSelectedStreamListener(setSelectedStream);
@@ -90,23 +96,36 @@ export default function App() {
 
   useEffect(() => {
     var selection: OvenPlayerSource[];
+    
+    let newSourcesList: SourcesList;
 
     if (selectedStream !== null) {
-      setSourcesList({
+      console.log("selected stream", selectedStream);
+      setStreamEnded(false);
+      newSourcesList = {
         sources: streamSelectionToOvenPlayerSourceList(selectedStream),
         isPlaceholder: false
-      });
+      };
     } else {
-      setSourcesList({
-        sources: [{
-          type: "mp4",
-          file: "https://testmerrie.nl/treinen.mp4"
-        }], 
-        isPlaceholder: true
-      });
+      console.log("no stream selected");
+      if (config.bam.idleVideo === null) {
+        newSourcesList = {sources: [], isPlaceholder: true};
+      } else {
+        newSourcesList = {
+          sources: [{
+            type: "mp4",
+            file: config.bam.idleVideo
+          }], 
+          isPlaceholder: true
+        };
+      }
     }
-    
-  }, [selectedStream, setSourcesList]);
+    if (playerWasUsedRef.current) {
+      // Workaround for https://github.com/AirenSoft/OvenPlayer/issues/370
+      setRebuildOvenPlayer(true);
+    }
+    setSourcesList(newSourcesList);
+  }, [selectedStream, setSourcesList, setRebuildOvenPlayer]);
 
 
   /* Drawer open/close logic */
@@ -142,11 +161,11 @@ export default function App() {
   }, [clearMouseOnVideoTimeout]);
 
   const userWantsDrawer = mouseOnDrawer || mouseActiveOnDrawerOpener;
-  const userNeedsDrawer = selectedStream === null || ccConnected;
+  const userNeedsDrawer = selectedStream === null || ccConnected || playerState === "error";
 
   useEffect(() => {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
-  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected])
+  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState])
 
   /* Fullscreen toggle logic */
 
@@ -158,21 +177,13 @@ export default function App() {
     }
   }, []);
 
-  let tryRestartAfterError = useCallback(() => {
-    let streamKey = selectedStream?.key;
-    if (streamKey !== undefined && streamManager?.isStreamAvailable(streamKey)) {
-      // TODO try restart
-    }
-  }, [selectedStream, streamManager]);
-
-
-
   useEffect(() => {
-    console.log("new state", playerState);
-    if (playerState === "error") {
-      setTimeout(tryRestartAfterError, 1000);
+    if (selectedStream?.key && !availableStreams.streamMap.hasOwnProperty(selectedStream.key)) {
+      console.log("stream ended");
+      setStreamEnded(true);
+      streamManager?.requestStreamSelection(NO_SELECTION);
     }
-  }, [playerState]);
+  }, [selectedStream, availableStreams, streamManager]);
 
   // Only enable stream updates when drawer is open; causes lag when updating on my garbage machine
   useEffect(() => {
@@ -190,7 +201,22 @@ export default function App() {
             ABR werkt slecht in Chrome, zie&nbsp;<Link target="_blank" href="https://github.com/AirenSoft/OvenMediaEngine/discussions/1066#discussioncomment-7902333">dit issue</Link>
         </>, {persist: false, variant: 'warning'});
     }
-}, [selectedStream]);
+  }, [selectedStream]);
+
+  useEffect(() => {
+    if (rebuildOvenPlayer) {
+      setPlayerState("idle");
+    }
+  }, [rebuildOvenPlayer])
+
+  if (rebuildOvenPlayer) {
+    playerWasUsedRef.current = false;
+    setTimeout(() => setRebuildOvenPlayer(false));
+  }
+
+  if (!rebuildOvenPlayer && sourcesList.sources.length > 0) {
+    playerWasUsedRef.current = true;
+  }
 
   return (
     <div className={"App " + playerState + (ccConnected ? " casting" : "")}>
@@ -201,17 +227,17 @@ export default function App() {
         setLogout={(logout) => setLogout(() => logout)}
       >
         <ChromecastSupport streamSelection={selectedStream} onConnect={setCcConnected}>
-          <OvenPlayerComponent
+          {rebuildOvenPlayer ? <></> : <OvenPlayerComponent
             onClicked={() => {}}
             onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
             sources={sourcesList.sources}
-            playerOptions={{autoStart: true, controls: false}}
+            playerOptions={{autoStart: true, controls: false, loop: true}}
             volume={volume}
             muted={muted || sourcesList.isPlaceholder}
             paused={ccConnected}
             startAtRandomOffset={sourcesList.isPlaceholder}
             onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
-          />
+          />}
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
             onMouseMove={() => {mouseOnVideoAction()}}
@@ -246,14 +272,13 @@ export default function App() {
           <div 
             className="state-overlay"
           >
-            <img src={tuinfeest} className="waiting-icon" alt="waiting" />
+            <img src={tuinfeest} className="loading-icon" alt="loading" />
           </div>
           <div 
             className="error-overlay"
           >
             Er gaat iets niet goed 😞<br />
-            Misschien is de stream gestopt, misschien gaat er gewoon iets mis.<br />
-            Probeer anders eens een ander protocol?
+            Probeer het nog eens?
           </div>
           <Drawer
             className="drawer"
@@ -268,20 +293,23 @@ export default function App() {
                 onMouseOver={() => {setMouseOnDrawer(true);}}
                 onMouseOut={() => {setMouseOnDrawer(false);}}
             >
-              <StreamSelector 
-                onStreamRequested={(selection: StreamSelectionRequest) => {
-                  selection.protocol = selectedProtocol;
-                  streamManager?.requestStreamSelection(selection)
-                }}
-                streams={availableStreamUpdate.streamMap}
-                screenshotTimestamp={availableStreamUpdate.refreshTimestamp}
-                currentStream={selectedStream}
-              />
-              {!availableStreamUpdate.streamMap || Object.entries(availableStreamUpdate.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
-                <FormControlLabel control={
-                  <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
-                } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
-              </FormGroup> : <></>}
+              <Box className="stream-selector-and-selection-options">
+                <StreamSelector 
+                  onStreamRequested={(selection: StreamSelectionRequest) => {
+                    selection.protocol = selectedProtocol;
+                    streamManager?.requestStreamSelection(selection)
+                  }}
+                  streams={availableStreams.streamMap}
+                  screenshotTimestamp={availableStreams.refreshTimestamp}
+                  currentStream={selectedStream}
+                  streamEnded={streamEnded}
+                />
+                {!availableStreams.streamMap || Object.entries(availableStreams.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
+                  <FormControlLabel control={
+                    <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
+                  } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
+                </FormGroup> : <></>}
+              </Box>
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
                 <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
