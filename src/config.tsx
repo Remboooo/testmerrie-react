@@ -6,6 +6,7 @@ export type DiscordConfig = {
 export type BamApiConfig = {
     uri: string,
     idleVideo: string|null,
+    idleAudio: string|null,
 };
 
 export type ChromecastConfig = {
@@ -29,7 +30,8 @@ let config: BamConfig = (process.env.NODE_ENV == 'development') ?
     },
     bam: {
         uri: "https://testmerrie.nl/api",
-        idleVideo: null//"https://testmerrie.nl/treinen.mp4",
+        idleVideo: "https://testmerrie.nl/treinen-mute.webm",
+        idleAudio: "https://testmerrie.nl/beatsies.webm",
     },
     chromecast: {
         applicationId: "64EAC1AE"
@@ -43,7 +45,8 @@ let config: BamConfig = (process.env.NODE_ENV == 'development') ?
     },
     bam: {
         uri: "https://testmerrie.nl/api",
-        idleVideo: null//"https://testmerrie.nl/treinen.mp4",
+        idleVideo: "https://testmerrie.nl/treinen-mute.webm",
+        idleAudio: "https://testmerrie.nl/beatsies.webm",
     },
     chromecast: {
         applicationId: "64EAC1AE"

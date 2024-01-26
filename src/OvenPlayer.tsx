@@ -220,6 +220,9 @@ export default function OvenPlayerComponent({
         }
 
         if (loadedSources != sources) {
+            playerRef.current.setVolume(volume);
+            playerRef.current.setMute(muted);
+
             if (sources.length !== 0) {
                 // Workaround: somehow the player does not transition to 'loading' immediately for WebRTC
                 console.log("loading sources", sources)

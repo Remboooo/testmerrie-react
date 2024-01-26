@@ -1,6 +1,6 @@
 import './App.css';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { SyntheticEvent, useCallback, useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
@@ -23,6 +23,7 @@ import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
 import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
 import config from './config';
+import ReactAudioPlayer from 'react-audio-player';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -44,6 +45,13 @@ type SourcesList = {
   isPlaceholder: boolean
 }
 
+type BackgroundAudio = {
+  source: string,
+}
+
+// Empty OPUS file. WAV would be shorter, but FF does not support it.
+const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAAAALSJfJMBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dTAAAAAAAAAAAAAATX2xMBAAAAMs4R1AEbT3B1c1RhZ3MLAAAAbGlib3B1cyAxLjQAAAAAT2dnUwAEOAEAAAAAAAAE19sTAgAAAH2fR5UBJ3AL5lPnqHt68t4P2sTcyxW/59HGZ5iOBdcPBxd7RYIrXeCvfBh0AA==");
+
 export default function App() {
   const [availableStreams, setAvailableStreams] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
@@ -60,6 +68,9 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
+  const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
+  const [backgroundAudio, setBackgroundAudio] = useState<BackgroundAudio|null>(null);
+  const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
 
   const playerWasUsedRef = useRef<boolean>(false);
 
@@ -74,6 +85,11 @@ export default function App() {
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
 
+  useEffect(() => {
+    DUMMY_AUDIO.currentTime = 0;
+    DUMMY_AUDIO.play().then(() => {setCanPlayAudio(true);});
+  }, [volume, muted, selectedStream, setCanPlayAudio]);
+
   useEffect(() => {if (authenticated && !streamManager) {setStreamManager(new StreamManager())}}, [authenticated]);
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
@@ -83,6 +99,8 @@ export default function App() {
   useEffect(() => {localStorage.setItem("volume", '' + volume);}, [volume]);
 
   useEffect(() => {localStorage.setItem("protocol", '' + selectedProtocol);}, [selectedProtocol]);
+  
+  useEffect(() => {localStorage.setItem("placeholderVideo", '' + usePlaceholderVideo);}, [usePlaceholderVideo]);
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
@@ -98,6 +116,7 @@ export default function App() {
     var selection: OvenPlayerSource[];
     
     let newSourcesList: SourcesList;
+    var newBackgroundAudio: BackgroundAudio|null = null;
 
     if (selectedStream !== null) {
       console.log("selected stream", selectedStream);
@@ -108,7 +127,7 @@ export default function App() {
       };
     } else {
       console.log("no stream selected");
-      if (config.bam.idleVideo === null) {
+      if (config.bam.idleVideo === null || !usePlaceholderVideo) {
         newSourcesList = {sources: [], isPlaceholder: true};
       } else {
         newSourcesList = {
@@ -118,6 +137,9 @@ export default function App() {
           }], 
           isPlaceholder: true
         };
+        if (config.bam.idleAudio !== null) {
+          newBackgroundAudio = {source: config.bam.idleAudio};
+        }
       }
     }
     if (playerWasUsedRef.current) {
@@ -125,7 +147,8 @@ export default function App() {
       setRebuildOvenPlayer(true);
     }
     setSourcesList(newSourcesList);
-  }, [selectedStream, setSourcesList, setRebuildOvenPlayer]);
+    setBackgroundAudio(newBackgroundAudio);
+  }, [selectedStream, setSourcesList, setRebuildOvenPlayer, setBackgroundAudio, usePlaceholderVideo]);
 
 
   /* Drawer open/close logic */
@@ -218,6 +241,8 @@ export default function App() {
     playerWasUsedRef.current = true;
   }
 
+  let effectivelyMuted = muted || !canPlayAudio;
+
   return (
     <div className={"App " + playerState + (ccConnected ? " casting" : "")}>
       <DiscordAuth
@@ -233,11 +258,23 @@ export default function App() {
             sources={sourcesList.sources}
             playerOptions={{autoStart: true, controls: false, loop: true}}
             volume={volume}
-            muted={muted || sourcesList.isPlaceholder}
+            muted={effectivelyMuted || sourcesList.isPlaceholder}
             paused={ccConnected}
             startAtRandomOffset={sourcesList.isPlaceholder}
             onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
           />}
+          {backgroundAudio !== null ? 
+            <ReactAudioPlayer 
+              autoPlay={true} 
+              src={backgroundAudio.source} 
+              volume={volume/100} 
+              muted={effectivelyMuted}
+              onLoadedMetadata={(e: Event) => {
+                let a = e.target as HTMLAudioElement;
+                a.currentTime = (Date.now() * 1e-3) % a.duration;
+              }}
+            /> : <></>
+          }
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
             onMouseMove={() => {mouseOnVideoAction()}}
@@ -253,7 +290,7 @@ export default function App() {
             }}
           ></div>
           <div 
-            className={"invisible-menu-opener" + (mouseVisibleOnVideo ? " mousing" : "")}
+            className={"invisible-menu-opener" + (mouseVisibleOnVideo && !drawerOpen ? " mousing" : "")}
             style={{cursor: "none"}}
             onMouseMove={() => {mouseDrawerOpenerAction()}}
             onClick={(event) => {
@@ -315,13 +352,13 @@ export default function App() {
                 <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox
-                      onClick={() => setMuted(!muted)}
-                      checked={muted}
+                      onClick={() => setMuted(!effectivelyMuted)}
+                      checked={effectivelyMuted}
                       icon={<VolumeOffOutlined />}
                       checkedIcon={<VolumeOff />}
                     />
                     <VolumeDown />
-                    <Slider sx={{width: '10em', color: (muted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
+                    <Slider sx={{width: '10em', color: (effectivelyMuted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
                     <VolumeUp />
                   </Stack>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
@@ -343,6 +380,9 @@ export default function App() {
                       </Select>
                     </FormControl>
                   </Stack>
+                  <FormControlLabel sx={{ padding: 2 }} control={
+                    <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setUsePlaceholderVideo(checked);}} />
+                  } label="CHOO CHOO 🚂" />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox 
                       onClick={() => toggleFullscreen()}
