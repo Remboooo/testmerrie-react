@@ -157,7 +157,8 @@ export default function OvenPlayerComponent({
         }
         console.log("create player");
         if (playerRef.current == null && playerElementRef.current != null) {
-            let thePlayer = OvenPlayer.create(playerElementRef.current, playerOptions);
+            // OvenPlayer.debug(true);
+            let thePlayer = OvenPlayer.create(playerElementRef.current, {...playerOptions, volume: 0, mute: true});
             thePlayer.on('ready', onReady);
             thePlayer.on('metaChanged', onMetaChanged);
             thePlayer.on('stateChanged', stateChangedCallback);
@@ -220,6 +221,7 @@ export default function OvenPlayerComponent({
         }
 
         if (loadedSources != sources) {
+            console.log("muted", muted, "volume", volume);
             playerRef.current.setVolume(volume);
             playerRef.current.setMute(muted);
 

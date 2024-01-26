@@ -1,6 +1,6 @@
 import './App.css';
 
-import { SyntheticEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
@@ -23,7 +23,6 @@ import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
 import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
 import config from './config';
-import ReactAudioPlayer from 'react-audio-player';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -71,6 +70,8 @@ export default function App() {
   const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
   const [backgroundAudio, setBackgroundAudio] = useState<BackgroundAudio|null>(null);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
+  const [clickCount, setClickCount] = useState<number>(0);
+  const backgroundAudioRef = useRef<HTMLAudioElement|null>(null);
 
   const playerWasUsedRef = useRef<boolean>(false);
 
@@ -86,9 +87,41 @@ export default function App() {
   const { enqueueSnackbar, } = useSnackbar();
 
   useEffect(() => {
-    DUMMY_AUDIO.currentTime = 0;
-    DUMMY_AUDIO.play().then(() => {setCanPlayAudio(true);});
-  }, [volume, muted, selectedStream, setCanPlayAudio]);
+    if (!canPlayAudio) {
+      DUMMY_AUDIO.currentTime = 0;
+      DUMMY_AUDIO.play().then(() => {
+        setCanPlayAudio(true);
+        console.log("audio playing unblocked");
+      }).catch(() => {
+        console.log("audio playing is blocked");
+      });
+    }
+  }, [volume, muted, selectedStream, setCanPlayAudio, canPlayAudio, clickCount]);
+
+  useEffect(() => {
+    if (backgroundAudio && backgroundAudioRef.current === null && canPlayAudio) {
+      let audio = new Audio();
+      audio.onloadedmetadata = () => {audio.currentTime = (Date.now() * 1e-3) % audio.duration};
+      audio.src = backgroundAudio.source;
+      audio.loop = true;
+      audio.volume = volume/100;
+      audio.muted = muted;
+      audio.play();
+      backgroundAudioRef.current = audio;
+    }
+    else if (!backgroundAudio && backgroundAudioRef.current !== null) {
+      let audio = backgroundAudioRef.current;
+      audio.src = "";
+      backgroundAudioRef.current = null;
+    }
+  }, [volume, muted, backgroundAudio, canPlayAudio, backgroundAudioRef]);
+
+  useEffect(() => {
+    if (backgroundAudioRef.current !== null) {
+      backgroundAudioRef.current.volume = volume/100;
+      backgroundAudioRef.current.muted = muted;
+    }
+  }, [volume, muted, backgroundAudioRef])
 
   useEffect(() => {if (authenticated && !streamManager) {setStreamManager(new StreamManager())}}, [authenticated]);
 
@@ -244,7 +277,7 @@ export default function App() {
   let effectivelyMuted = muted || !canPlayAudio;
 
   return (
-    <div className={"App " + playerState + (ccConnected ? " casting" : "")}>
+    <div className={"App " + playerState + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
       <DiscordAuth
         setUserInfo={setUserInfo}
         setAuthenticated={setAuthenticated}
@@ -257,24 +290,12 @@ export default function App() {
             onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
             sources={sourcesList.sources}
             playerOptions={{autoStart: true, controls: false, loop: true}}
-            volume={volume}
+            volume={effectivelyMuted ? 0 : volume}
             muted={effectivelyMuted || sourcesList.isPlaceholder}
             paused={ccConnected}
             startAtRandomOffset={sourcesList.isPlaceholder}
             onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
           />}
-          {backgroundAudio !== null ? 
-            <ReactAudioPlayer 
-              autoPlay={true} 
-              src={backgroundAudio.source} 
-              volume={volume/100} 
-              muted={effectivelyMuted}
-              onLoadedMetadata={(e: Event) => {
-                let a = e.target as HTMLAudioElement;
-                a.currentTime = (Date.now() * 1e-3) % a.duration;
-              }}
-            /> : <></>
-          }
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
             onMouseMove={() => {mouseOnVideoAction()}}
@@ -352,13 +373,13 @@ export default function App() {
                 <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox
-                      onClick={() => setMuted(!effectivelyMuted)}
+                      onClick={() => {setMuted(!effectivelyMuted); setClickCount(clickCount+1);}}
                       checked={effectivelyMuted}
                       icon={<VolumeOffOutlined />}
                       checkedIcon={<VolumeOff />}
                     />
                     <VolumeDown />
-                    <Slider sx={{width: '10em', color: (effectivelyMuted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => setMuted(false)} onChange={(event, newValue, something) => {setVolume(newValue as number); setMuted(false);}} />
+                    <Slider sx={{width: '10em', color: (effectivelyMuted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => {setMuted(false); setClickCount(clickCount+1);}} onChange={(event, newValue) => {setVolume(newValue as number); setMuted(false); setClickCount(clickCount+1);}} />
                     <VolumeUp />
                   </Stack>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
@@ -381,7 +402,7 @@ export default function App() {
                     </FormControl>
                   </Stack>
                   <FormControlLabel sx={{ padding: 2 }} control={
-                    <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setUsePlaceholderVideo(checked);}} />
+                    <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
                   } label="CHOO CHOO 🚂" />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox 

@@ -224,3 +224,9 @@ div.stream-selector-and-selection-options {
   display: flex;
   flex-direction: column;
 }
+
+.placeholder-video {
+  video {
+    object-fit: cover;
+  }
+}
