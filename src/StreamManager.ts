@@ -3,6 +3,7 @@ import { getStreams, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap,
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
+const DEFAULT_QUALITY = "full";
 
 export type StreamSelectionRequest = {
     key: string|null,
@@ -54,8 +55,14 @@ export class StreamManager {
         if (this._autoStart) {
             const streamEntries = Object.entries(this.availableStreams);
             if (this.selectedStream === null && streamEntries.length > 0) {
-                this.selectedStream = {key: streamEntries[0][0], stream: streamEntries[0][1], protocol: DEFAULT_PROTOCOL, quality: "abr"};
-                this.selectedStreamListener(this.selectedStream);
+                let streamKey = streamEntries[0][0];
+                let streamDef = streamEntries[0][1];
+                let availableQualities = Object.getOwnPropertyNames(streamDef.streams);
+                if (availableQualities.length) {
+                    let quality = Object.hasOwn(streamDef.streams, DEFAULT_QUALITY) ? DEFAULT_QUALITY : Object.getOwnPropertyNames(streamDef.streams)[0];
+                    this.selectedStream = {key: streamKey, stream: streamDef, protocol: DEFAULT_PROTOCOL, quality: quality};
+                    this.selectedStreamListener(this.selectedStream);
+                }
             }
         }
     }

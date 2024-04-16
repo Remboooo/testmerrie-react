@@ -26,6 +26,8 @@ import config from './config';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
+const BACKGROUND_AUDIO_RATIO = 0.1;
+
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
   "webrtc-udp": "webrtc",
@@ -104,7 +106,7 @@ export default function App() {
       audio.onloadedmetadata = () => {audio.currentTime = (Date.now() * 1e-3) % audio.duration};
       audio.src = backgroundAudio.source;
       audio.loop = true;
-      audio.volume = volume/100;
+      audio.volume = volume*BACKGROUND_AUDIO_RATIO/100;
       audio.muted = muted;
       audio.play();
       backgroundAudioRef.current = audio;
@@ -118,7 +120,7 @@ export default function App() {
 
   useEffect(() => {
     if (backgroundAudioRef.current !== null) {
-      backgroundAudioRef.current.volume = volume/100;
+      backgroundAudioRef.current.volume = volume*BACKGROUND_AUDIO_RATIO/100;
       backgroundAudioRef.current.muted = muted;
     }
   }, [volume, muted, backgroundAudioRef])
@@ -146,8 +148,6 @@ export default function App() {
   }, [streamManager, setSelectedStream]);
 
   useEffect(() => {
-    var selection: OvenPlayerSource[];
-    
     let newSourcesList: SourcesList;
     var newBackgroundAudio: BackgroundAudio|null = null;
 
@@ -175,7 +175,15 @@ export default function App() {
         }
       }
     }
-    if (playerWasUsedRef.current) {
+    
+    let same = (
+      sourcesList.isPlaceholder == newSourcesList.isPlaceholder 
+      && sourcesList.sources.length == newSourcesList.sources.length 
+      && sourcesList.sources.every((v, i) => v.type == newSourcesList.sources[i].type && v.file == newSourcesList.sources[i].file)
+    );
+    
+
+    if (playerWasUsedRef.current && !same) {
       // Workaround for https://github.com/AirenSoft/OvenPlayer/issues/370
       setRebuildOvenPlayer(true);
     }
@@ -217,7 +225,7 @@ export default function App() {
   }, [clearMouseOnVideoTimeout]);
 
   const userWantsDrawer = mouseOnDrawer || mouseActiveOnDrawerOpener;
-  const userNeedsDrawer = selectedStream === null || ccConnected || playerState === "error";
+  const userNeedsDrawer = (!sourcesList.sources.length) || ccConnected || playerState === "error";
 
   useEffect(() => {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
@@ -243,12 +251,12 @@ export default function App() {
 
   // Only enable stream updates when drawer is open; causes lag when updating on my garbage machine
   useEffect(() => {
-    if (drawerOpen) {
+    if (drawerOpen || selectedStream === null) {
       streamManager?.startUpdates();
     } else {
       streamManager?.stopUpdates();
     }
-  }, [streamManager, drawerOpen]);
+  }, [streamManager, drawerOpen, selectedStream]);
 
   // Issue a warning for broken ABR implementations
   useEffect(() => {

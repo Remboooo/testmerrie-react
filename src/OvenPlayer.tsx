@@ -220,7 +220,7 @@ export default function OvenPlayerComponent({
             return;
         }
 
-        if (loadedSources != sources) {
+        if (loadedSources.length != sources.length || !loadedSources.every((v, i) => v.type == sources[i].type && v.file == sources[i].file)) {
             console.log("muted", muted, "volume", volume);
             playerRef.current.setVolume(volume);
             playerRef.current.setMute(muted);
