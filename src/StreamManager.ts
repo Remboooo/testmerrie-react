@@ -1,5 +1,5 @@
 import { useSnackbar } from "notistack";
-import { getStreams, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
+import { getStreams, IdleStreamSpec, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
@@ -22,6 +22,7 @@ export type StreamSelection = {
 
 export type AvailableStreamUpdate = {
     streamMap: StreamMap,
+    idleStream: IdleStreamSpec | undefined,
     refreshTimestamp: number,
 };
 
@@ -32,6 +33,7 @@ export class StreamManager {
     scheduledUpdate: NodeJS.Timeout|null = null;
     refreshTimestamp: number = 0;
     availableStreams: StreamMap = {};
+    idleStream: IdleStreamSpec | undefined = undefined;
     selectedStream: StreamSelection = null;
     availableStreamListener: AvailableStreamListener = (update) => {};
     selectedStreamListener: SelectedStreamListener = (selection) => {};
@@ -41,10 +43,15 @@ export class StreamManager {
     private _autoStart: boolean = false;
     
     private updateStreamsOnce() {
-        return getStreams().then(streams => {
+        return getStreams().then(response => {
             this.refreshTimestamp = Date.now();
-            this.availableStreams = streams;
-            this.availableStreamListener({streamMap: streams, refreshTimestamp: this.refreshTimestamp});
+            this.availableStreams = response.streams;
+            this.idleStream = response.idleStream;
+            this.availableStreamListener({
+                streamMap: this.availableStreams, 
+                idleStream: this.idleStream, 
+                refreshTimestamp: this.refreshTimestamp
+            });
             this.checkAutoStart();
         }).catch(reason => {
             console.log("failed to get streams", reason);
@@ -90,7 +97,11 @@ export class StreamManager {
 
     setAvailableStreamListener(listener: AvailableStreamListener) {
         this.availableStreamListener = listener;
-        this.availableStreamListener({streamMap: this.availableStreams, refreshTimestamp: this.refreshTimestamp});
+        this.availableStreamListener({
+            streamMap: this.availableStreams,
+            idleStream: this.idleStream, 
+            refreshTimestamp: this.refreshTimestamp
+        });
     }
 
     setSelectedStreamListener(listener: SelectedStreamListener) {

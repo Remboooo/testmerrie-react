@@ -54,7 +54,8 @@ type BackgroundAudio = {
 const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAAAALSJfJMBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dTAAAAAAAAAAAAAATX2xMBAAAAMs4R1AEbT3B1c1RhZ3MLAAAAbGlib3B1cyAxLjQAAAAAT2dnUwAEOAEAAAAAAAAE19sTAgAAAH2fR5UBJ3AL5lPnqHt68t4P2sTcyxW/59HGZ5iOBdcPBxd7RYIrXeCvfBh0AA==");
 
 export default function App() {
-  const [availableStreams, setAvailableStreams] = useState<AvailableStreamUpdate>({streamMap: {}, refreshTimestamp: 0});
+  const [availableStreams, setAvailableStreams] = useState<AvailableStreamUpdate>({streamMap: {}, idleStream: undefined, refreshTimestamp: 0});
+  const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [selectedProtocol, setSelectedProtocol] = useState<StreamProtocol>(() => {const v = localStorage.getItem("protocol"); return v === null ? "webrtc-udp" : v as StreamProtocol;});
   const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
@@ -70,10 +71,8 @@ export default function App() {
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
-  const [backgroundAudio, setBackgroundAudio] = useState<BackgroundAudio|null>(null);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
-  const backgroundAudioRef = useRef<HTMLAudioElement|null>(null);
 
   const playerWasUsedRef = useRef<boolean>(false);
 
@@ -100,31 +99,6 @@ export default function App() {
     }
   }, [volume, muted, selectedStream, setCanPlayAudio, canPlayAudio, clickCount]);
 
-  useEffect(() => {
-    if (backgroundAudio && backgroundAudioRef.current === null && canPlayAudio) {
-      let audio = new Audio();
-      audio.onloadedmetadata = () => {audio.currentTime = (Date.now() * 1e-3) % audio.duration};
-      audio.src = backgroundAudio.source;
-      audio.loop = true;
-      audio.volume = volume*BACKGROUND_AUDIO_RATIO/100;
-      audio.muted = muted;
-      audio.play();
-      backgroundAudioRef.current = audio;
-    }
-    else if (!backgroundAudio && backgroundAudioRef.current !== null) {
-      let audio = backgroundAudioRef.current;
-      audio.src = "";
-      backgroundAudioRef.current = null;
-    }
-  }, [volume, muted, backgroundAudio, canPlayAudio, backgroundAudioRef]);
-
-  useEffect(() => {
-    if (backgroundAudioRef.current !== null) {
-      backgroundAudioRef.current.volume = volume*BACKGROUND_AUDIO_RATIO/100;
-      backgroundAudioRef.current.muted = muted;
-    }
-  }, [volume, muted, backgroundAudioRef])
-
   useEffect(() => {if (authenticated && !streamManager) {setStreamManager(new StreamManager())}}, [authenticated]);
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
@@ -148,8 +122,11 @@ export default function App() {
   }, [streamManager, setSelectedStream]);
 
   useEffect(() => {
+    setIdleStreamUrl(availableStreams.idleStream?.url);
+  }, [setIdleStreamUrl, availableStreams])
+
+  useEffect(() => {
     let newSourcesList: SourcesList;
-    var newBackgroundAudio: BackgroundAudio|null = null;
 
     if (selectedStream !== null) {
       console.log("selected stream", selectedStream);
@@ -160,19 +137,16 @@ export default function App() {
       };
     } else {
       console.log("no stream selected");
-      if (config.bam.idleVideo === null || !usePlaceholderVideo) {
+      if (idleStreamUrl === undefined || !usePlaceholderVideo) {
         newSourcesList = {sources: [], isPlaceholder: true};
       } else {
         newSourcesList = {
           sources: [{
-            type: "mp4",
-            file: config.bam.idleVideo
+            type: "llhls",
+            file: idleStreamUrl
           }], 
           isPlaceholder: true
         };
-        if (config.bam.idleAudio !== null) {
-          newBackgroundAudio = {source: config.bam.idleAudio};
-        }
       }
     }
     
@@ -188,8 +162,7 @@ export default function App() {
       setRebuildOvenPlayer(true);
     }
     setSourcesList(newSourcesList);
-    setBackgroundAudio(newBackgroundAudio);
-  }, [selectedStream, setSourcesList, setRebuildOvenPlayer, setBackgroundAudio, usePlaceholderVideo]);
+  }, [selectedStream, idleStreamUrl, setSourcesList, setRebuildOvenPlayer, usePlaceholderVideo]);
 
 
   /* Drawer open/close logic */
@@ -283,6 +256,7 @@ export default function App() {
   }
 
   let effectivelyMuted = muted || !canPlayAudio;
+  let effectiveVolume = sourcesList.isPlaceholder ? BACKGROUND_AUDIO_RATIO * volume : volume;
 
   return (
     <div className={"App " + playerState + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
@@ -298,8 +272,8 @@ export default function App() {
             onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
             sources={sourcesList.sources}
             playerOptions={{autoStart: true, controls: false, loop: true}}
-            volume={effectivelyMuted ? 0 : volume}
-            muted={effectivelyMuted || sourcesList.isPlaceholder}
+            volume={effectivelyMuted ? 0 : effectiveVolume}
+            muted={effectivelyMuted}
             paused={ccConnected}
             startAtRandomOffset={sourcesList.isPlaceholder}
             onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
@@ -350,7 +324,6 @@ export default function App() {
             className="drawer"
             open={drawerOpen}
             onClose={() => {setMouseOnDrawer(false);}}
-            onMouseMove={() => mouseDrawerOpenerAction()}
             onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
             ModalProps={{ onBackdropClick: () => {if (!userNeedsDrawer) setDrawerOpen(false);} }}
             anchor="top"

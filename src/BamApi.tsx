@@ -117,12 +117,17 @@ export type StreamMap = {
     [key: string]: StreamSpec
 };
 
+export type IdleStreamSpec = {
+    "url": string,
+}
+
 export type StreamResponse = {
     streams: StreamMap,
+    idleStream?: IdleStreamSpec,
 };
 
-export async function getStreams(): Promise<StreamMap> {
-    return (await fetch(API_BASE + "/streams", {headers: getHeaders()})).json().then(j => j.streams);
+export async function getStreams(): Promise<StreamResponse> {
+    return (await fetch(API_BASE + "/streams", {headers: getHeaders()})).json();
 }
 
 export type UserInfo = {
