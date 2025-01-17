@@ -22,7 +22,6 @@ import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
 import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
-import config from './config';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -46,10 +45,6 @@ type SourcesList = {
   isPlaceholder: boolean
 }
 
-type BackgroundAudio = {
-  source: string,
-}
-
 // Empty OPUS file. WAV would be shorter, but FF does not support it.
 const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAAAALSJfJMBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dTAAAAAAAAAAAAAATX2xMBAAAAMs4R1AEbT3B1c1RhZ3MLAAAAbGlib3B1cyAxLjQAAAAAT2dnUwAEOAEAAAAAAAAE19sTAgAAAH2fR5UBJ3AL5lPnqHt68t4P2sTcyxW/59HGZ5iOBdcPBxd7RYIrXeCvfBh0AA==");
 
@@ -57,6 +52,7 @@ export default function App() {
   const [availableStreams, setAvailableStreams] = useState<AvailableStreamUpdate>({streamMap: {}, idleStream: undefined, refreshTimestamp: 0});
   const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
+  const [chromecastStream, setChromecastStream] = useState<StreamSelection>(null);
   const [selectedProtocol, setSelectedProtocol] = useState<StreamProtocol>(() => {const v = localStorage.getItem("protocol"); return v === null ? "webrtc-udp" : v as StreamProtocol;});
   const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
@@ -164,6 +160,28 @@ export default function App() {
     setSourcesList(newSourcesList);
   }, [selectedStream, idleStreamUrl, setSourcesList, setRebuildOvenPlayer, usePlaceholderVideo]);
 
+  useEffect(() => {
+    if (selectedStream !== null) {
+      setChromecastStream(selectedStream);
+    } else if (idleStreamUrl === undefined || !usePlaceholderVideo) {
+      setChromecastStream(null);
+    } else {
+      setChromecastStream({
+        key: "idle",
+        stream: {
+          name: "idle",
+          streams: {
+            "default": {
+              llhls: idleStreamUrl,
+            }
+          },
+        },
+        quality: "default",
+        protocol: "llhls",
+      })
+    }
+  }, [selectedStream]);
+
 
   /* Drawer open/close logic */
 
@@ -266,7 +284,7 @@ export default function App() {
         /* We have to wrap the logout function in another lambda because setLogout() produced by useState() treats any lambda as a lazy getter */
         setLogout={(logout) => setLogout(() => logout)}
       >
-        <ChromecastSupport streamSelection={selectedStream} onConnect={setCcConnected}>
+        <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
           {rebuildOvenPlayer ? <></> : <OvenPlayerComponent
             onClicked={() => {}}
             onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}

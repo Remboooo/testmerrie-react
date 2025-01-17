@@ -95,8 +95,8 @@ export default function StreamSelector(props: StreamSelectorProps) {
                                 {props.name}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Live sinds {formatDateTime(props.created)}<br />
-                                In glorious {props.video.width || '?'}×{props.video.height || '?'} @ {formatBitrate(props.video.bitrate)}
+                                {props.created ? <>Live sinds {formatDateTime(props.created)}</>:null }<br />
+                                {props.video ? <>In glorious {props.video.width || '?'}×{props.video.height || '?'} @ {formatBitrate(props.video.bitrate)}</>:null}                                
                             </Typography>
                         </CardContent>
                     </CardActionArea>

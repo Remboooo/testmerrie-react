@@ -107,9 +107,9 @@ export type StreamQuality = keyof StreamQualityMap;
 export type StreamSpec = {
     name: string,
     streams: StreamQualityMap,
-    created: string,
-    video: VideoStreamParams,
-    audio: AudioStreamParams,
+    created?: string,
+    video?: VideoStreamParams,
+    audio?: AudioStreamParams,
     thumbnail?: string,
 };
 
