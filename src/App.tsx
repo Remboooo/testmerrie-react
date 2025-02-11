@@ -67,6 +67,7 @@ export default function App() {
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
+  const [useCrtFilter, setUseCrtFilter] = useState<boolean>(() => {const v = localStorage.getItem("crtFilter"); return v !== "false";});
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
@@ -106,6 +107,8 @@ export default function App() {
   useEffect(() => {localStorage.setItem("protocol", '' + selectedProtocol);}, [selectedProtocol]);
   
   useEffect(() => {localStorage.setItem("placeholderVideo", '' + usePlaceholderVideo);}, [usePlaceholderVideo]);
+
+  useEffect(() => {localStorage.setItem("crtFilter", '' + useCrtFilter);}, [useCrtFilter]);
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
@@ -285,17 +288,20 @@ export default function App() {
         setLogout={(logout) => setLogout(() => logout)}
       >
         <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
-          {rebuildOvenPlayer ? <></> : <OvenPlayerComponent
-            onClicked={() => {}}
-            onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
-            sources={sourcesList.sources}
-            playerOptions={{autoStart: true, controls: false, loop: true}}
-            volume={effectivelyMuted ? 0 : effectiveVolume}
-            muted={effectivelyMuted}
-            paused={ccConnected}
-            startAtRandomOffset={sourcesList.isPlaceholder}
-            onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
-          />}
+          <div className={"mainVideoContainer" + (useCrtFilter ? " crtFilter" : "")}>
+            {rebuildOvenPlayer ? <></> : <OvenPlayerComponent
+              onClicked={() => {}}
+              onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
+              sources={sourcesList.sources}
+              playerOptions={{autoStart: true, controls: false, loop: true}}
+              volume={effectivelyMuted ? 0 : effectiveVolume}
+              muted={effectivelyMuted}
+              paused={ccConnected}
+              startAtRandomOffset={sourcesList.isPlaceholder}
+              onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
+            />}
+            <div className="crtOverlay" />
+          </div>
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
             onMouseMove={() => {mouseOnVideoAction()}}
@@ -400,9 +406,12 @@ export default function App() {
                       </Select>
                     </FormControl>
                   </Stack>
-                  <FormControlLabel sx={{ padding: 2 }} control={
+                  <FormControlLabel control={
                     <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
-                  } label="CHOO CHOO 🚂" />
+                  } label="🚂" />
+                  <FormControlLabel control={
+                    <Checkbox checked={useCrtFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseCrtFilter(checked);}} />
+                  } label="📺" />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox 
                       onClick={() => toggleFullscreen()}
