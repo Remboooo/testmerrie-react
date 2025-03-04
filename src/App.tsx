@@ -67,7 +67,7 @@ export default function App() {
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
-  const [useCrtFilter, setUseCrtFilter] = useState<boolean>(() => {const v = localStorage.getItem("crtFilter"); return v !== "false";});
+  const [useCrtFilter, setUseCrtFilter] = useState<boolean>(() => {const v = localStorage.getItem("crtFilter"); return v === "true";});
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 

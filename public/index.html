@@ -34,17 +34,15 @@
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div style="display: none; position: absolute; top;-9999; z-index:0; visibility;: hidden;">
+    <div style="position: absolute; top: -9999; z-index: 0; visibility: hidden;">
       <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="svg-root" width="381" height="166" z-index="-1">
-        <title id="test-title">filters-dispMap-BE-16</title>
-        <desc id="test-desc">Test which verifies the basic facilities of feDisplacementMap.</desc>
-          <defs>
+        <defs>
           <filter id="crt-sphere">
             <feImage id="mapa" result="Map" xlink:href="%PUBLIC_URL%/sphere_wide_1.png" />
             <feDisplacementMap id="despMap" in="SourceGraphic" in2="map" scale="100" xChannelSelector="R" yChannelSelector="G" />
           </filter>
           <filter id="glow" filterUnits="objectBoundingBox" x="0" y="0">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" />
+            <feGaussianBlur in="SourceGraphic" color-interpolation-filters="sRGB" stdDeviation="1.5" />
           </filter>
         </defs>
       </svg>
