@@ -68,6 +68,7 @@ export default function App() {
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
   const [useCrtFilter, setUseCrtFilter] = useState<boolean>(() => {const v = localStorage.getItem("crtFilter"); return v === "true";});
+  const [useChromaFilter, setUseChromaFilter] = useState<boolean>(() => {const v = localStorage.getItem("chromaFilter"); return v === "true";});
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
@@ -109,6 +110,8 @@ export default function App() {
   useEffect(() => {localStorage.setItem("placeholderVideo", '' + usePlaceholderVideo);}, [usePlaceholderVideo]);
 
   useEffect(() => {localStorage.setItem("crtFilter", '' + useCrtFilter);}, [useCrtFilter]);
+
+  useEffect(() => {localStorage.setItem("chromaFilter", '' + useChromaFilter);}, [useChromaFilter]);
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
@@ -288,7 +291,7 @@ export default function App() {
         setLogout={(logout) => setLogout(() => logout)}
       >
         <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
-          <div className={"mainVideoContainer" + (useCrtFilter ? " crtFilter" : "")}>
+          <div className={"mainVideoContainer" + (useCrtFilter ? " crtFilter" : "") + (useChromaFilter ? " chromaFilter" : "")}>
             {rebuildOvenPlayer ? <></> : <OvenPlayerComponent
               onClicked={() => {}}
               onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
@@ -412,6 +415,9 @@ export default function App() {
                   <FormControlLabel control={
                     <Checkbox checked={useCrtFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseCrtFilter(checked);}} />
                   } label="📺" />
+                  <FormControlLabel control={
+                    <Checkbox checked={useChromaFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseChromaFilter(checked);}} />
+                  } label="🎨" />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox 
                       onClick={() => toggleFullscreen()}

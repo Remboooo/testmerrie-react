@@ -44,6 +44,42 @@
           <filter id="glow" filterUnits="objectBoundingBox" x="0" y="0">
             <feGaussianBlur in="SourceGraphic" color-interpolation-filters="sRGB" stdDeviation="1.5" />
           </filter>
+              <filter id="chromatic-aberration">
+                <!-- Red channel shift right 2px and blurred 2px -->
+                <feColorMatrix
+                  in="SourceGraphic"
+                  type="matrix"
+                  values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
+                />
+                <feOffset dx="2" dy="0" />
+                <feGaussianBlur stdDeviation="2" result="redChannel" />
+
+                <!-- Green channel left in place with a small 0.5px blur -->
+                <feColorMatrix
+                  in="SourceGraphic"
+                  type="matrix"
+                  values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"
+                />
+                <feGaussianBlur stdDeviation="0.5" result="greenChannel" />
+
+                <!-- Red channel shift left 2px and blurred 2px -->
+                <feColorMatrix
+                  in="SourceGraphic"
+                  type="matrix"
+                  values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"
+                />
+                <feOffset dx="8" dy="0" />
+                <feGaussianBlur stdDeviation="2" result="blueChannel" />
+
+                <!-- Put the channels back together with the screen blend mode -->
+                <feBlend
+                  in="redChannel"
+                  in2="greenChannel"
+                  mode="screen"
+                  result="redGreen"
+                />
+                <feBlend in="redGreen" in2="blueChannel" mode="screen" />
+            </filter>
         </defs>
       </svg>
     </div>
