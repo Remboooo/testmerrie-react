@@ -52,7 +52,7 @@
                   values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
                 />
                 <feOffset dx="2" dy="0" />
-                <feGaussianBlur stdDeviation="2" result="redChannel" />
+                <feGaussianBlur stdDeviation="2" color-interpolation-filters="sRGB" result="redChannel" />
 
                 <!-- Green channel left in place with a small 0.5px blur -->
                 <feColorMatrix
@@ -60,7 +60,7 @@
                   type="matrix"
                   values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"
                 />
-                <feGaussianBlur stdDeviation="0.5" result="greenChannel" />
+                <feGaussianBlur stdDeviation="0.5" color-interpolation-filters="sRGB" result="greenChannel" />
 
                 <!-- Red channel shift left 2px and blurred 2px -->
                 <feColorMatrix
@@ -69,7 +69,7 @@
                   values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"
                 />
                 <feOffset dx="8" dy="0" />
-                <feGaussianBlur stdDeviation="2" result="blueChannel" />
+                <feGaussianBlur stdDeviation="2" color-interpolation-filters="sRGB" result="blueChannel" />
 
                 <!-- Put the channels back together with the screen blend mode -->
                 <feBlend
@@ -77,8 +77,9 @@
                   in2="greenChannel"
                   mode="screen"
                   result="redGreen"
+                  color-interpolation-filters="sRGB" 
                 />
-                <feBlend in="redGreen" in2="blueChannel" mode="screen" />
+                <feBlend in="redGreen" in2="blueChannel" mode="screen" color-interpolation-filters="sRGB" />
             </filter>
         </defs>
       </svg>
