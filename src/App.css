@@ -18,7 +18,7 @@ body {
 }
 
 .App.idle, .App.paused, .App.error {
-  background: url(poster-notext.png) no-repeat bottom;
+  background: url(./poster-notext.png) no-repeat bottom;
   background-color: #000000;
   background-size: 100% auto;
 }

@@ -19,31 +19,16 @@ export type BamConfig = {
 
 
 
-let config: BamConfig = (process.env.NODE_ENV == 'development') ? 
-// DEVELOPMENT
-{
+const config: BamConfig = {
     discord: {
-        clientId: "1000107540442513568",
-        redirectUri: "http://localhost:3000/authcallback",
+        clientId: import.meta.env.VITE_DISCORD_CLIENT_ID,
+        redirectUri: import.meta.env.VITE_DISCORD_REDIRECT_URI,
     },
     bam: {
-        uri: "https://testmerrie.nl/api",
+        uri: import.meta.env.VITE_API_BASE,
     },
     chromecast: {
-        applicationId: "64EAC1AE"
-    },
-} : 
-// PRODUCTION
-{
-    discord: {
-        clientId: "1000107540442513568",
-        redirectUri: "https://testmerrie.nl/authcallback",
-    },
-    bam: {
-        uri: "https://testmerrie.nl/api",
-    },
-    chromecast: {
-        applicationId: "64EAC1AE"
+        applicationId: import.meta.env.VITE_CHROMECAST_APP_ID,
     },
 };
 
