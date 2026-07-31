@@ -1,5 +1,16 @@
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+
+// Build-time version stamp, shown in the UI so you can tell which build is live.
+const APP_VERSION = (() => {
+  try {
+    return execSync('git describe --always --dirty', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return 'unknown';
+  }
+})();
+const BUILD_TIME = new Date().toLocaleString('sv-SE').slice(0, 16); // "YYYY-MM-DD HH:mm", server local time
 
 // In dev the app runs on http://localhost:3000 while the API and media server
 // live on the production host. Proxying /api keeps the browser same-origin with
@@ -9,6 +20,10 @@ const DEV_API_TARGET = process.env.VITE_DEV_API_TARGET || 'https://testmerrie.nl
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+    __BUILD_TIME__: JSON.stringify(BUILD_TIME),
+  },
   server: {
     port: 3000,
     host: true,

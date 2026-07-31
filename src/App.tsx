@@ -462,6 +462,9 @@ export default function App() {
                     {userInfo ? (
                       <div>{userInfo?.user?.username}</div>
                     ) : ''}
+                    <Typography variant="caption" color="text.secondary" title={"Gebouwd op " + __BUILD_TIME__}>
+                      {__APP_VERSION__} · {__BUILD_TIME__}
+                    </Typography>
                   </Box>
                   <IconButton onClick={logout}><Logout /></IconButton>
                   <IconButton onClick={() => {setHelpOpen(true);}}><Help /></IconButton>
