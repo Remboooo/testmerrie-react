@@ -72,6 +72,7 @@ export type AudioStreamParams = {
 
 export type StreamProtocolUrlMap = {
     "llhls"?: string,
+    "hls"?: string,
     "webrtc-udp"?: string,
     "webrtc-tcp"?: string,
 }

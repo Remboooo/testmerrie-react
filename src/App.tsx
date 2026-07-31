@@ -21,7 +21,7 @@ import Button from '@mui/material/Button';
 import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
-import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent } from '@mui/material';
+import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent, Typography } from '@mui/material';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -29,9 +29,33 @@ const BACKGROUND_AUDIO_RATIO = 0.1;
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
   "llhls": "llhls",
+  "hls": "hls",
   "webrtc-udp": "webrtc",
   "webrtc-tcp": "webrtc",
 }
+
+// Protocol dropdown options, ordered low-latency -> most-resilient, with a short
+// note on what each excels at.
+const PROTOCOL_OPTIONS: {value: StreamProtocol, label: string, description: string}[] = [
+  {value: "webrtc-udp", label: "WebRTC (UDP)", description: "Laagste vertraging, het beste bij een goede verbinding"},
+  {value: "webrtc-tcp", label: "WebRTC (TCP)", description: "Lage vertraging, werkt ook door strenge firewalls"},
+  {value: "llhls", label: "LLHLS", description: "Lage vertraging, werkt vrijwel overal"},
+  {value: "hls", label: "HLS", description: "Hogere vertraging, het meest bestand tegen een slechte of haperende verbinding"},
+];
+
+// hls.js config used only for the HLS protocol: buffer generously and be patient
+// on slow/unstable networks (the defaults abort loads after 10s).
+const HLS_RESILIENT_CONFIG = {
+  liveSyncDurationCount: 4,
+  maxBufferLength: 60,
+  maxMaxBufferLength: 120,
+  fragLoadingTimeOut: 30000,
+  manifestLoadingTimeOut: 30000,
+  levelLoadingTimeOut: 30000,
+  fragLoadingMaxRetry: 8,
+  manifestLoadingMaxRetry: 6,
+  levelLoadingMaxRetry: 6,
+};
 
 function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): OvenPlayerSource[] {
   return selection === null ? [] : [{
@@ -296,7 +320,7 @@ export default function App() {
               onClicked={() => {}}
               onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
               sources={sourcesList.sources}
-              playerOptions={{autoStart: true, controls: false, loop: true}}
+              playerOptions={{autoStart: true, controls: false, loop: true, hlsConfig: selectedStream?.protocol === "hls" ? HLS_RESILIENT_CONFIG : undefined}}
               volume={effectivelyMuted ? 0 : effectiveVolume}
               muted={effectivelyMuted}
               paused={ccConnected}
@@ -399,13 +423,17 @@ export default function App() {
                         value={selectedProtocol}
                         label="Protocol"
                         sx={{width: '10em'}}
+                        renderValue={(value) => PROTOCOL_OPTIONS.find(o => o.value === value)?.label ?? value}
                         onChange={(event: SelectChangeEvent) => {
                           setSelectedProtocol(event.target.value as StreamProtocol);
                         }}
                       >
-                        <MenuItem value="llhls">LLHLS</MenuItem>
-                        <MenuItem value="webrtc-udp">WebRTC (UDP)</MenuItem>
-                        <MenuItem value="webrtc-tcp">WebRTC (TCP)</MenuItem>
+                        {PROTOCOL_OPTIONS.map(({value, label, description}) => (
+                          <MenuItem key={value} value={value} sx={{display: 'block', whiteSpace: 'normal', maxWidth: '22em'}}>
+                            <Typography variant="body2">{label}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{display: 'block'}}>{description}</Typography>
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Stack>

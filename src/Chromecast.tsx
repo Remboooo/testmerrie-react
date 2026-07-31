@@ -19,12 +19,14 @@ const applicationId = config.chromecast.applicationId;
 
 const PROTOCOL_TO_CONTENT_TYPE: {[key in StreamProtocol]: string} = {
     "llhls": "application/x-mpegurl",
+    "hls": "application/x-mpegurl",
     "webrtc-udp": "application/webrtc",
     "webrtc-tcp": "application/webrtc",
 }
 
 const PROTOCOL_TO_OVENPLAYER_TYPE: {[key in StreamProtocol]: OvenPlayerSourceType} = {
     "llhls": "llhls",
+    "hls": "hls",
     "webrtc-udp": "webrtc",
     "webrtc-tcp": "webrtc",
 }
