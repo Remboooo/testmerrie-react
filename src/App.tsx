@@ -6,6 +6,7 @@ import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, NO_SELECTION, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { usePlayerRetry } from './usePlayerRetry';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
@@ -108,6 +109,11 @@ export default function App() {
 
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
+
+  // Ride out OME's readiness window: on a playback error for a real stream, retry
+  // the same source (shown as loading) rather than failing immediately. See
+  // docs/ome-stream-readiness.md.
+  const retrying = usePlayerRetry(playerState, selectedStream, useCallback(() => setRebuildOvenPlayer(true), []));
 
   useEffect(() => {
     if (!canPlayAudio) {
@@ -307,7 +313,7 @@ export default function App() {
   let effectiveVolume = sourcesList.isPlaceholder ? BACKGROUND_AUDIO_RATIO * volume : volume;
 
   return (
-    <div className={"App " + playerState + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
+    <div className={"App " + (retrying ? "loading" : playerState) + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
       <DiscordAuth
         setUserInfo={setUserInfo}
         setAuthenticated={setAuthenticated}
