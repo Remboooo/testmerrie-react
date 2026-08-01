@@ -380,9 +380,19 @@ export default function App() {
             anchor="top"
           >
             <Box
+                sx={{position: 'relative'}}
                 onMouseOver={() => {setMouseOnDrawer(true);}}
                 onMouseOut={() => {setMouseOnDrawer(false);}}
             >
+              {/* Build version, overlaid top-right of the stream area; thumbnails cover it when full. */}
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                title={"Gebouwd op " + __BUILD_TIME__}
+                sx={{position: 'absolute', top: 2, right: 8, pointerEvents: 'none', opacity: 0.6}}
+              >
+                {__APP_VERSION__} · {__BUILD_TIME__}
+              </Typography>
               <Box className="stream-selector-and-selection-options">
                 <StreamSelector 
                   onStreamRequested={(selection: StreamSelectionRequest) => {
@@ -462,9 +472,6 @@ export default function App() {
                     {userInfo ? (
                       <div>{userInfo?.user?.username}</div>
                     ) : ''}
-                    <Typography variant="caption" color="text.secondary" title={"Gebouwd op " + __BUILD_TIME__}>
-                      {__APP_VERSION__} · {__BUILD_TIME__}
-                    </Typography>
                   </Box>
                   <IconButton onClick={logout}><Logout /></IconButton>
                   <IconButton onClick={() => {setHelpOpen(true);}}><Help /></IconButton>
