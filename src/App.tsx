@@ -1,6 +1,6 @@
 import './App.css';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
@@ -77,7 +77,6 @@ const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAA
 
 export default function App() {
   const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
-  const [chromecastStream, setChromecastStream] = useState<StreamSelection>(null);
   const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp", (v) => v as StreamProtocol);
   const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
@@ -97,6 +96,23 @@ export default function App() {
   const [useChromaFilter, setUseChromaFilter] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
+
+  // What to hand Chromecast: the selected stream, the idle loop when nothing is
+  // selected (and the placeholder is on), or nothing.
+  const chromecastStream: StreamSelection = useMemo(() => {
+    if (selectedStream !== null) {
+      return selectedStream;
+    }
+    if (idleStreamUrl === undefined || !usePlaceholderVideo) {
+      return null;
+    }
+    return {
+      key: "idle",
+      stream: { name: "idle", streams: { "default": { llhls: idleStreamUrl } } },
+      quality: "default",
+      protocol: "llhls",
+    };
+  }, [selectedStream, idleStreamUrl, usePlaceholderVideo]);
 
   const playerWasUsedRef = useRef<boolean>(false);
 
@@ -175,27 +191,6 @@ export default function App() {
     setSourcesList(newSourcesList);
   }, [selectedStream, idleStreamUrl, setSourcesList, setRebuildOvenPlayer, usePlaceholderVideo]);
 
-  useEffect(() => {
-    if (selectedStream !== null) {
-      setChromecastStream(selectedStream);
-    } else if (idleStreamUrl === undefined || !usePlaceholderVideo) {
-      setChromecastStream(null);
-    } else {
-      setChromecastStream({
-        key: "idle",
-        stream: {
-          name: "idle",
-          streams: {
-            "default": {
-              llhls: idleStreamUrl,
-            }
-          },
-        },
-        quality: "default",
-        protocol: "llhls",
-      })
-    }
-  }, [selectedStream]);
 
 
   /* Drawer open/close logic */
