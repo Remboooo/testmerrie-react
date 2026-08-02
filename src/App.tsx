@@ -7,6 +7,7 @@ import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, NO_SELECTION, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
+import { usePersistedState } from './usePersistedState';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
@@ -78,13 +79,13 @@ export default function App() {
   const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
   const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [chromecastStream, setChromecastStream] = useState<StreamSelection>(null);
-  const [selectedProtocol, setSelectedProtocol] = useState<StreamProtocol>(() => {const v = localStorage.getItem("protocol"); return v === null ? "webrtc-udp" : v as StreamProtocol;});
+  const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp", (v) => v as StreamProtocol);
   const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
-  const [muted, setMuted] = useState<boolean>(() => {const v = localStorage.getItem("muted"); return v === "true";});
-  const [volume, setVolume] = useState<number>(() => {const v = localStorage.getItem("volume"); return v === null ? 100 : parseInt(v);});
+  const [muted, setMuted] = usePersistedState<boolean>("muted", false, (v) => v === "true");
+  const [volume, setVolume] = usePersistedState<number>("volume", 100, (v) => parseInt(v));
   const [streamManager, setStreamManager] = useState<StreamManager|undefined>();
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
@@ -92,9 +93,9 @@ export default function App() {
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
-  const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
-  const [useCrtFilter, setUseCrtFilter] = useState<boolean>(() => {const v = localStorage.getItem("crtFilter"); return v === "true";});
-  const [useChromaFilter, setUseChromaFilter] = useState<boolean>(() => {const v = localStorage.getItem("chromaFilter"); return v === "true";});
+  const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
+  const [useCrtFilter, setUseCrtFilter] = usePersistedState<boolean>("crtFilter", false, (v) => v === "true");
+  const [useChromaFilter, setUseChromaFilter] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
@@ -131,18 +132,6 @@ export default function App() {
   useEffect(() => {if (authenticated && !streamManager) {setStreamManager(new StreamManager())}}, [authenticated]);
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
-
-  useEffect(() => {localStorage.setItem("muted", '' + muted);}, [muted]);
-
-  useEffect(() => {localStorage.setItem("volume", '' + volume);}, [volume]);
-
-  useEffect(() => {localStorage.setItem("protocol", '' + selectedProtocol);}, [selectedProtocol]);
-  
-  useEffect(() => {localStorage.setItem("placeholderVideo", '' + usePlaceholderVideo);}, [usePlaceholderVideo]);
-
-  useEffect(() => {localStorage.setItem("crtFilter", '' + useCrtFilter);}, [useCrtFilter]);
-
-  useEffect(() => {localStorage.setItem("chromaFilter", '' + useChromaFilter);}, [useChromaFilter]);
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
