@@ -253,11 +253,14 @@ export default function App() {
   }, [clearMouseOnVideoTimeout]);
 
   const userWantsDrawer = mouseOnDrawer || mouseActiveOnDrawerOpener;
-  const userNeedsDrawer = (!sourcesList.sources.length) || ccConnected || playerState === "error";
+  // While retrying we're really in a loading state, so don't let the transient
+  // "error" force the drawer open on every retry cycle — only the terminal error
+  // (once retries are exhausted) should.
+  const userNeedsDrawer = (!sourcesList.sources.length) || ccConnected || (!retrying && playerState === "error");
 
   useEffect(() => {
     setDrawerOpen(userWantsDrawer || userNeedsDrawer);
-  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState])
+  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState, retrying])
 
   /* Fullscreen toggle logic */
 
