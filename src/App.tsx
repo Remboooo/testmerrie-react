@@ -8,6 +8,7 @@ import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, NO_SELECTION, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
+import { useStreamManager } from './useStreamManager';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
@@ -75,9 +76,7 @@ type SourcesList = {
 const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAAAALSJfJMBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dTAAAAAAAAAAAAAATX2xMBAAAAMs4R1AEbT3B1c1RhZ3MLAAAAbGlib3B1cyAxLjQAAAAAT2dnUwAEOAEAAAAAAAAE19sTAgAAAH2fR5UBJ3AL5lPnqHt68t4P2sTcyxW/59HGZ5iOBdcPBxd7RYIrXeCvfBh0AA==");
 
 export default function App() {
-  const [availableStreams, setAvailableStreams] = useState<AvailableStreamUpdate>({streamMap: {}, idleStream: undefined, refreshTimestamp: 0});
   const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
-  const [selectedStream, setSelectedStream] = useState<StreamSelection>(null);
   const [chromecastStream, setChromecastStream] = useState<StreamSelection>(null);
   const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp", (v) => v as StreamProtocol);
   const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
@@ -86,8 +85,8 @@ export default function App() {
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
   const [muted, setMuted] = usePersistedState<boolean>("muted", false, (v) => v === "true");
   const [volume, setVolume] = usePersistedState<number>("volume", 100, (v) => parseInt(v));
-  const [streamManager, setStreamManager] = useState<StreamManager|undefined>();
   const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const { manager: streamManager, availableStreams, selectedStream } = useStreamManager(authenticated);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
@@ -129,19 +128,9 @@ export default function App() {
     }
   }, [volume, muted, selectedStream, setCanPlayAudio, canPlayAudio, clickCount]);
 
-  useEffect(() => {if (authenticated && !streamManager) {setStreamManager(new StreamManager())}}, [authenticated]);
-
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
-
-  useEffect(() => {
-    streamManager?.setAvailableStreamListener(setAvailableStreams);
-  }, [streamManager, setAvailableStreams]);
-
-  useEffect(() => {
-    streamManager?.setSelectedStreamListener(setSelectedStream);
-  }, [streamManager, setSelectedStream]);
 
   useEffect(() => {
     setIdleStreamUrl(availableStreams.idleStream?.url);

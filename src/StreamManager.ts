@@ -35,8 +35,25 @@ export class StreamManager {
     availableStreams: StreamMap = {};
     idleStream: IdleStreamSpec | undefined = undefined;
     selectedStream: StreamSelection = null;
-    availableStreamListener: AvailableStreamListener = (update) => {};
-    selectedStreamListener: SelectedStreamListener = (selection) => {};
+    private availableStreamUpdate: AvailableStreamUpdate = {streamMap: {}, idleStream: undefined, refreshTimestamp: 0};
+    private listeners: Set<() => void> = new Set();
+
+    subscribe(listener: () => void): () => void {
+        this.listeners.add(listener);
+        return () => { this.listeners.delete(listener); };
+    }
+
+    private notify() {
+        this.listeners.forEach(listener => listener());
+    }
+
+    getAvailableStreams(): AvailableStreamUpdate {
+        return this.availableStreamUpdate;
+    }
+
+    getSelectedStream(): StreamSelection {
+        return this.selectedStream;
+    }
     // This will not work because of autoplay restrictions:
     // WebRTC.js:107 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
     // private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
@@ -47,11 +64,12 @@ export class StreamManager {
             this.refreshTimestamp = Date.now();
             this.availableStreams = response.streams;
             this.idleStream = response.idleStream;
-            this.availableStreamListener({
-                streamMap: this.availableStreams, 
-                idleStream: this.idleStream, 
-                refreshTimestamp: this.refreshTimestamp
-            });
+            this.availableStreamUpdate = {
+                streamMap: this.availableStreams,
+                idleStream: this.idleStream,
+                refreshTimestamp: this.refreshTimestamp,
+            };
+            this.notify();
             this.checkAutoStart();
         }).catch(reason => {
             console.log("failed to get streams", reason);
@@ -68,7 +86,7 @@ export class StreamManager {
                 if (availableQualities.length) {
                     let quality = Object.hasOwn(streamDef.streams, DEFAULT_QUALITY) ? DEFAULT_QUALITY : Object.getOwnPropertyNames(streamDef.streams)[0];
                     this.selectedStream = {key: streamKey, stream: streamDef, protocol: DEFAULT_PROTOCOL, quality: quality};
-                    this.selectedStreamListener(this.selectedStream);
+                    this.notify();
                 }
             }
         }
@@ -95,20 +113,6 @@ export class StreamManager {
         this.updateStreamsOnce();
     }
 
-    setAvailableStreamListener(listener: AvailableStreamListener) {
-        this.availableStreamListener = listener;
-        this.availableStreamListener({
-            streamMap: this.availableStreams,
-            idleStream: this.idleStream, 
-            refreshTimestamp: this.refreshTimestamp
-        });
-    }
-
-    setSelectedStreamListener(listener: SelectedStreamListener) {
-        this.selectedStreamListener = listener;
-        this.selectedStreamListener(this.selectedStream);
-    }
-
     requestProtocolChange(protocol: StreamProtocol|null) {
         if (this.selectedStream === null) {
             return;
@@ -119,7 +123,7 @@ export class StreamManager {
         }
 
         this.selectedStream = {key: this.selectedStream.key, stream: this.selectedStream.stream, quality: this.selectedStream.quality, protocol};
-        this.selectedStreamListener(this.selectedStream);
+        this.notify();
     }
 
     requestStreamSelection(request: StreamSelectionRequest) {
@@ -144,7 +148,7 @@ export class StreamManager {
             
             this.selectedStream = {key: request.key, stream, protocol, quality};
         }
-        this.selectedStreamListener(this.selectedStream);
+        this.notify();
     }
 
     isStreamAvailable(key: string): boolean {
