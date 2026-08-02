@@ -68,6 +68,7 @@ export type OvenPlayerProps = {
     muted: boolean,
     paused: boolean,
     startAtRandomOffset: boolean,
+    reloadNonce: number,
 };
 
 export default function OvenPlayerComponent({
@@ -105,6 +106,7 @@ export default function OvenPlayerComponent({
         muted = false,
         paused = false,
         startAtRandomOffset = false,
+        reloadNonce = 0,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
     let containerElementRef = useRef<HTMLDivElement>(null);
@@ -213,6 +215,15 @@ export default function OvenPlayerComponent({
     useEffect(() => {
         setLoadedSources([]);
     }, [playerRef])
+
+    useEffect(() => {
+        // Bumping reloadNonce forces the current sources to be reloaded (used to
+        // retry a source that errored, e.g. during OME's readiness window) without
+        // a full player unmount/remount, which would blink the video.
+        if (reloadNonce !== 0) {
+            setLoadedSources([]);
+        }
+    }, [reloadNonce])
 
     useEffect(() => {
         if (playerRef.current == null) {

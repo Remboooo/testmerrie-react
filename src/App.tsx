@@ -91,6 +91,7 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
+  const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = useState<boolean>(() => {const v = localStorage.getItem("placeholderVideo"); return v !== "false";});
   const [useCrtFilter, setUseCrtFilter] = useState<boolean>(() => {const v = localStorage.getItem("crtFilter"); return v === "true";});
   const [useChromaFilter, setUseChromaFilter] = useState<boolean>(() => {const v = localStorage.getItem("chromaFilter"); return v === "true";});
@@ -113,7 +114,7 @@ export default function App() {
   // Ride out OME's readiness window: on a playback error for a real stream, retry
   // the same source (shown as loading) rather than failing immediately. See
   // docs/ome-stream-readiness.md.
-  const retrying = usePlayerRetry(playerState, selectedStream, useCallback(() => setRebuildOvenPlayer(true), []));
+  const retrying = usePlayerRetry(playerState, selectedStream, useCallback(() => setReloadNonce(n => n + 1), []));
 
   useEffect(() => {
     if (!canPlayAudio) {
@@ -331,6 +332,7 @@ export default function App() {
               muted={effectivelyMuted}
               paused={ccConnected}
               startAtRandomOffset={sourcesList.isPlaceholder}
+              reloadNonce={reloadNonce}
               onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
             />}
             <div className="crtOverlay" />
