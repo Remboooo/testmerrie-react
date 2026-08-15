@@ -170,12 +170,6 @@ export default function App() {
     }
   }, [selectedStream]);
 
-  // On a source change the player remounts (via key); reset the displayed state
-  // so we don't briefly show the previous stream's state before the new loads.
-  useEffect(() => {
-    setPlayerState("idle");
-  }, [sourceKey]);
-
 
 
   /* Drawer open/close logic */
