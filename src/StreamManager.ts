@@ -35,6 +35,9 @@ export class StreamManager {
     availableStreams: StreamMap = {};
     idleStream: IdleStreamSpec | undefined = undefined;
     selectedStream: StreamSelection = null;
+    // When the playing stream disappears from the list we keep it here (shown
+    // greyed/"ended") and auto-resume it if it comes back.
+    endedSelection: StreamSelection = null;
     private availableStreamUpdate: AvailableStreamUpdate = {streamMap: {}, idleStream: undefined, refreshTimestamp: 0};
     private listeners: Set<() => void> = new Set();
 
@@ -54,6 +57,10 @@ export class StreamManager {
     getSelectedStream(): StreamSelection {
         return this.selectedStream;
     }
+
+    getEndedSelection(): StreamSelection {
+        return this.endedSelection;
+    }
     // This will not work because of autoplay restrictions:
     // WebRTC.js:107 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
     // private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
@@ -69,6 +76,7 @@ export class StreamManager {
                 idleStream: this.idleStream,
                 refreshTimestamp: this.refreshTimestamp,
             };
+            this.reconcileSelection();
             this.notify();
             this.checkAutoStart();
         }).catch(reason => {
@@ -126,28 +134,40 @@ export class StreamManager {
         this.notify();
     }
 
-    requestStreamSelection(request: StreamSelectionRequest) {
+    private resolveSelection(request: StreamSelectionRequest): StreamSelection {
         if (request.key === null || !(request.key in this.availableStreams)) {
-            this.selectedStream = null;
-        } else {
-            const stream = this.availableStreams[request.key];
-            const defaultQuality = Object.keys(stream.streams)[0];
-            var quality: StreamQuality;
-            if (request.quality !== null && request.quality in stream.streams) {
-                quality = request.quality;
-            } else {
-                quality = defaultQuality;
-            }
-
-            var protocol: StreamProtocol;
-            if (request.protocol !== null && request.protocol in stream.streams[quality]) {
-                protocol = request.protocol;
-            } else {
-                protocol = DEFAULT_PROTOCOL;
-            }
-            
-            this.selectedStream = {key: request.key, stream, protocol, quality};
+            return null;
         }
+        const stream = this.availableStreams[request.key];
+        const defaultQuality = Object.keys(stream.streams)[0];
+        const quality: StreamQuality = (request.quality !== null && request.quality in stream.streams)
+            ? request.quality : defaultQuality;
+        const protocol: StreamProtocol = (request.protocol !== null && request.protocol in stream.streams[quality])
+            ? request.protocol : DEFAULT_PROTOCOL;
+        return {key: request.key, stream, protocol, quality};
+    }
+
+    // Keep the selection in sync with availability: if the playing stream vanished
+    // remember it as "ended"; if a remembered ended stream reappears, resume it
+    // with the same quality/protocol. Called on every poll (and exposed for tests).
+    reconcileSelection() {
+        if (this.selectedStream !== null && !(this.selectedStream.key in this.availableStreams)) {
+            this.endedSelection = this.selectedStream;
+            this.selectedStream = null;
+        } else if (this.endedSelection !== null && this.endedSelection.key in this.availableStreams) {
+            this.selectedStream = this.resolveSelection({
+                key: this.endedSelection.key,
+                quality: this.endedSelection.quality,
+                protocol: this.endedSelection.protocol,
+            });
+            this.endedSelection = null;
+        }
+    }
+
+    requestStreamSelection(request: StreamSelectionRequest) {
+        // An explicit selection (including deselect) supersedes any sticky "ended" intent.
+        this.endedSelection = null;
+        this.selectedStream = this.resolveSelection(request);
         this.notify();
     }
 

@@ -75,6 +75,47 @@ describe('requestProtocolChange', () => {
   });
 });
 
+describe('sticky ended stream + auto-resume', () => {
+  it('moves a vanished playing stream to endedSelection and stops playing', () => {
+    const sm = setup();
+    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+
+    sm.availableStreams = {}; // the stream dropped off the list
+    sm.reconcileSelection();
+
+    expect(sm.getSelectedStream()).toBeNull();
+    expect(sm.getEndedSelection()).toMatchObject({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+  });
+
+  it('auto-resumes with the same quality/protocol when the stream reappears', () => {
+    const sm = setup();
+    sm.requestStreamSelection({ key: 'bam/rem', quality: '480p', protocol: 'hls' });
+    sm.availableStreams = {};
+    sm.reconcileSelection(); // ended
+
+    sm.availableStreams = STREAMS; // came back
+    sm.reconcileSelection();
+
+    expect(sm.getSelectedStream()).toMatchObject({ key: 'bam/rem', quality: '480p', protocol: 'hls' });
+    expect(sm.getEndedSelection()).toBeNull();
+  });
+
+  it('an explicit deselect drops the sticky intent (no resume)', () => {
+    const sm = setup();
+    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.availableStreams = {};
+    sm.reconcileSelection();
+    expect(sm.getEndedSelection()).not.toBeNull();
+
+    sm.requestStreamSelection(NO_SELECTION);
+    expect(sm.getEndedSelection()).toBeNull();
+
+    sm.availableStreams = STREAMS; // reappears, but we cancelled -> no resume
+    sm.reconcileSelection();
+    expect(sm.getSelectedStream()).toBeNull();
+  });
+});
+
 describe('subscribe + snapshots', () => {
   it('notifies subscribers on selection changes and unsubscribes cleanly', () => {
     const sm = setup();

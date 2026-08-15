@@ -84,10 +84,9 @@ export default function App() {
   const [muted, setMuted] = usePersistedState<boolean>("muted", false, (v) => v === "true");
   const [volume, setVolume] = usePersistedState<number>("volume", 100, (v) => parseInt(v));
   const [authenticated, setAuthenticated] = useState<boolean>(false);
-  const { manager: streamManager, availableStreams, selectedStream } = useStreamManager(authenticated);
+  const { manager: streamManager, availableStreams, selectedStream, endedSelection } = useStreamManager(authenticated);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
-  const [streamEnded, setStreamEnded] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
   const [useCrtFilter, setUseCrtFilter] = usePersistedState<boolean>("crtFilter", false, (v) => v === "true");
@@ -164,12 +163,6 @@ export default function App() {
   // declaratively instead of via a manual rebuild flag + setTimeout dance.
   const sourceKey = sourcesList.sources.map(s => s.type + "|" + s.file).join("||");
 
-  useEffect(() => {
-    if (selectedStream !== null) {
-      setStreamEnded(false);
-    }
-  }, [selectedStream]);
-
 
 
   /* Drawer open/close logic */
@@ -224,13 +217,6 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    if (selectedStream?.key && !availableStreams.streamMap.hasOwnProperty(selectedStream.key)) {
-      console.log("stream ended");
-      setStreamEnded(true);
-      streamManager?.requestStreamSelection(NO_SELECTION);
-    }
-  }, [selectedStream, availableStreams, streamManager]);
 
   // Only enable stream updates when drawer is open; causes lag when updating on my garbage machine
   useEffect(() => {
@@ -351,7 +337,7 @@ export default function App() {
                   streams={availableStreams.streamMap}
                   screenshotTimestamp={availableStreams.refreshTimestamp}
                   currentStream={selectedStream}
-                  streamEnded={streamEnded}
+                  endedStream={endedSelection}
                 />
                 {!availableStreams.streamMap || Object.entries(availableStreams.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
                   <FormControlLabel control={

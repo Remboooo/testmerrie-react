@@ -13,6 +13,7 @@ export function useStreamManager(authenticated: boolean): {
   manager: StreamManager | undefined;
   availableStreams: AvailableStreamUpdate;
   selectedStream: StreamSelection;
+  endedSelection: StreamSelection;
 } {
   const [manager, setManager] = useState<StreamManager | undefined>();
 
@@ -28,6 +29,7 @@ export function useStreamManager(authenticated: boolean): {
   );
   const availableStreams = useSyncExternalStore(subscribe, () => manager?.getAvailableStreams() ?? EMPTY_UPDATE);
   const selectedStream = useSyncExternalStore(subscribe, () => manager?.getSelectedStream() ?? null);
+  const endedSelection = useSyncExternalStore(subscribe, () => manager?.getEndedSelection() ?? null);
 
-  return { manager, availableStreams, selectedStream };
+  return { manager, availableStreams, selectedStream, endedSelection };
 }
