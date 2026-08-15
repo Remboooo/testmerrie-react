@@ -78,7 +78,6 @@ const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAA
 export default function App() {
   const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
   const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp", (v) => v as StreamProtocol);
-  const [sourcesList, setSourcesList] = useState<SourcesList>({sources: [], isPlaceholder: false});
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
@@ -89,7 +88,6 @@ export default function App() {
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [streamEnded, setStreamEnded] = useState<boolean>(false);
-  const [rebuildOvenPlayer, setRebuildOvenPlayer] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
   const [useCrtFilter, setUseCrtFilter] = usePersistedState<boolean>("crtFilter", false, (v) => v === "true");
@@ -113,8 +111,6 @@ export default function App() {
       protocol: "llhls",
     };
   }, [selectedStream, idleStreamUrl, usePlaceholderVideo]);
-
-  const playerWasUsedRef = useRef<boolean>(false);
 
   const [logout, setLogout] = useState<() => void>();
 
@@ -152,44 +148,33 @@ export default function App() {
     setIdleStreamUrl(availableStreams.idleStream?.url);
   }, [setIdleStreamUrl, availableStreams])
 
-  useEffect(() => {
-    let newSourcesList: SourcesList;
-
+  // Sources to hand the player: the selected stream, the idle loop, or nothing.
+  const sourcesList: SourcesList = useMemo(() => {
     if (selectedStream !== null) {
-      console.log("selected stream", selectedStream);
-      setStreamEnded(false);
-      newSourcesList = {
-        sources: streamSelectionToOvenPlayerSourceList(selectedStream),
-        isPlaceholder: false
-      };
-    } else {
-      console.log("no stream selected");
-      if (idleStreamUrl === undefined || !usePlaceholderVideo) {
-        newSourcesList = {sources: [], isPlaceholder: true};
-      } else {
-        newSourcesList = {
-          sources: [{
-            type: "llhls",
-            file: idleStreamUrl
-          }], 
-          isPlaceholder: true
-        };
-      }
+      return { sources: streamSelectionToOvenPlayerSourceList(selectedStream), isPlaceholder: false };
     }
-    
-    let same = (
-      sourcesList.isPlaceholder == newSourcesList.isPlaceholder 
-      && sourcesList.sources.length == newSourcesList.sources.length 
-      && sourcesList.sources.every((v, i) => v.type == newSourcesList.sources[i].type && v.file == newSourcesList.sources[i].file)
-    );
-    
+    if (idleStreamUrl === undefined || !usePlaceholderVideo) {
+      return { sources: [], isPlaceholder: true };
+    }
+    return { sources: [{ type: "llhls", file: idleStreamUrl }], isPlaceholder: true };
+  }, [selectedStream, idleStreamUrl, usePlaceholderVideo]);
 
-    if (playerWasUsedRef.current && !same) {
-      // Workaround for https://github.com/AirenSoft/OvenPlayer/issues/370
-      setRebuildOvenPlayer(true);
+  // Key the player by its source so a source change remounts it — the workaround
+  // for OvenPlayer issue #370 (it doesn't switch sources cleanly), done
+  // declaratively instead of via a manual rebuild flag + setTimeout dance.
+  const sourceKey = sourcesList.sources.map(s => s.type + "|" + s.file).join("||");
+
+  useEffect(() => {
+    if (selectedStream !== null) {
+      setStreamEnded(false);
     }
-    setSourcesList(newSourcesList);
-  }, [selectedStream, idleStreamUrl, setSourcesList, setRebuildOvenPlayer, usePlaceholderVideo]);
+  }, [selectedStream]);
+
+  // On a source change the player remounts (via key); reset the displayed state
+  // so we don't briefly show the previous stream's state before the new loads.
+  useEffect(() => {
+    setPlayerState("idle");
+  }, [sourceKey]);
 
 
 
@@ -271,21 +256,6 @@ export default function App() {
     }
   }, [selectedStream]);
 
-  useEffect(() => {
-    if (rebuildOvenPlayer) {
-      setPlayerState("idle");
-    }
-  }, [rebuildOvenPlayer])
-
-  if (rebuildOvenPlayer) {
-    playerWasUsedRef.current = false;
-    setTimeout(() => setRebuildOvenPlayer(false));
-  }
-
-  if (!rebuildOvenPlayer && sourcesList.sources.length > 0) {
-    playerWasUsedRef.current = true;
-  }
-
   let effectivelyMuted = muted || !canPlayAudio;
   let effectiveVolume = sourcesList.isPlaceholder ? BACKGROUND_AUDIO_RATIO * volume : volume;
 
@@ -299,7 +269,8 @@ export default function App() {
       >
         <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
           <div className={"mainVideoContainer" + (useCrtFilter ? " crtFilter" : "") + (useChromaFilter ? " chromaFilter" : "")}>
-            {rebuildOvenPlayer ? <></> : <OvenPlayerComponent
+            <OvenPlayerComponent
+              key={sourceKey}
               onClicked={() => {}}
               onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
               sources={sourcesList.sources}
@@ -310,7 +281,7 @@ export default function App() {
               startAtRandomOffset={sourcesList.isPlaceholder}
               reloadNonce={reloadNonce}
               onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
-            />}
+            />
             <div className="crtOverlay" />
           </div>
           <div 
