@@ -1,6 +1,10 @@
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import 'typeface-roboto'
+// Roboto, latin only, just the weights MUI's theme uses (light/regular/medium/bold).
+import '@fontsource/roboto/latin-300.css';
+import '@fontsource/roboto/latin-400.css';
+import '@fontsource/roboto/latin-500.css';
+import '@fontsource/roboto/latin-700.css';
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from './theme';

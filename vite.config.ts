@@ -40,6 +40,23 @@ export default defineConfig({
     // Keep the CRA output dir so existing deploy tooling (cp build/ -> web root)
     // keeps working.
     outDir: 'build',
+    // The ovenplayer vendor chunk is inherently ~550 kB; that's expected, not a
+    // regression to warn about on every build.
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        // Split rarely-changing vendor code into its own chunks so it stays
+        // cached across our frequent app-only deploys.
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('ovenplayer')) return 'ovenplayer';
+            if (id.includes('@mui') || id.includes('@emotion') || id.includes('@popperjs')) return 'mui';
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'react';
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
   test: {
     environment: 'jsdom',
