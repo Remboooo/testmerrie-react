@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { StreamManager, NO_SELECTION } from './StreamManager';
-import { StreamMap } from './BamApi';
+import { StreamManager, NO_SELECTION, resolveQualityTier } from './StreamManager';
+import { StreamMap, StreamQualityMap } from './BamApi';
+
+const Q = (names: string[]): StreamQualityMap => Object.fromEntries(names.map(n => [n, { llhls: n }]));
 
 const STREAMS: StreamMap = {
   'bam/rem': {
@@ -50,6 +52,36 @@ describe('requestStreamSelection', () => {
     sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
     sm.requestStreamSelection(NO_SELECTION);
     expect(sm.getSelectedStream()).toBeNull();
+  });
+});
+
+describe('resolveQualityTier', () => {
+  const full = Q(['abr', 'full', '1080p', '720p', '480p']);
+  it('auto prefers the adaptive rendition', () => expect(resolveQualityTier(full, 'auto')).toBe('abr'));
+  it('best picks the source/highest', () => expect(resolveQualityTier(full, 'best')).toBe('full'));
+  it('saver picks the lowest', () => expect(resolveQualityTier(full, 'saver')).toBe('480p'));
+  it('balanced picks a middle rendition', () => expect(resolveQualityTier(full, 'balanced')).toBe('720p'));
+
+  const noAdaptive = Q(['1080p', '720p', '480p']);
+  it('auto without adaptive uses the highest concrete', () => expect(resolveQualityTier(noAdaptive, 'auto')).toBe('1080p'));
+  it('balanced of three picks the middle', () => expect(resolveQualityTier(noAdaptive, 'balanced')).toBe('720p'));
+
+  it('degrades gracefully to the only rendition', () => {
+    expect(resolveQualityTier(Q(['480p']), 'best')).toBe('480p');
+    expect(resolveQualityTier(Q(['abr']), 'saver')).toBe('abr');
+  });
+});
+
+describe('requestQualityChange', () => {
+  it('re-resolves the current stream to the new tier and persists it', () => {
+    const sm = setup(); // bam/rem offers full + 480p (no adaptive)
+    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'llhls' });
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full' }); // auto -> highest concrete
+
+    sm.requestQualityChange('saver');
+    expect(sm.qualityTier).toBe('saver');
+    expect(sm.getSelectedStream()).toMatchObject({ quality: '480p', protocol: 'llhls' });
+    expect(localStorage.getItem('qualityTier')).toBe('saver');
   });
 });
 

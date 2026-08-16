@@ -5,7 +5,7 @@ import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayer
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { AvailableStreamUpdate, NO_SELECTION, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { AvailableStreamUpdate, NO_SELECTION, QualityTier, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import { useStreamManager } from './useStreamManager';
@@ -46,6 +46,13 @@ const PROTOCOL_OPTIONS: {value: StreamProtocol, label: string, description: stri
   {value: "hls", label: "HLS", description: "Hogere vertraging, het meest bestand tegen een slechte of haperende verbinding"},
 ];
 
+const QUALITY_OPTIONS: {value: QualityTier, label: string, description: string}[] = [
+  {value: "auto", label: "Auto", description: "Past zich automatisch aan je verbinding aan (adaptief)"},
+  {value: "best", label: "Beste", description: "Hoogste resolutie die de stream biedt"},
+  {value: "balanced", label: "Gebalanceerd", description: "Middenweg tussen kwaliteit en bandbreedte"},
+  {value: "saver", label: "Databesparing", description: "Laagste resolutie, het zuinigst met data"},
+];
+
 // hls.js config used only for the HLS protocol: buffer generously and be patient
 // on slow/unstable networks (the defaults abort loads after 10s).
 const HLS_RESILIENT_CONFIG = {
@@ -84,7 +91,7 @@ export default function App() {
   const [muted, setMuted] = usePersistedState<boolean>("muted", false, (v) => v === "true");
   const [volume, setVolume] = usePersistedState<number>("volume", 100, (v) => parseInt(v));
   const [authenticated, setAuthenticated] = useState<boolean>(false);
-  const { manager: streamManager, availableStreams, selectedStream, endedSelection } = useStreamManager(authenticated);
+  const { manager: streamManager, availableStreams, selectedStream, endedSelection, qualityTier } = useStreamManager(authenticated);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
@@ -374,6 +381,27 @@ export default function App() {
                         }}
                       >
                         {PROTOCOL_OPTIONS.map(({value, label, description}) => (
+                          <MenuItem key={value} value={value} sx={{display: 'block', whiteSpace: 'normal', maxWidth: '22em'}}>
+                            <Typography variant="body2">{label}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{display: 'block'}}>{description}</Typography>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <FormControl size="small">
+                      <InputLabel id="quality-select-label">Kwaliteit</InputLabel>
+                      <Select
+                        labelId="quality-select-label"
+                        id="quality-select"
+                        value={qualityTier}
+                        label="Kwaliteit"
+                        sx={{width: '11em'}}
+                        renderValue={(value) => QUALITY_OPTIONS.find(o => o.value === value)?.label ?? value}
+                        onChange={(event: SelectChangeEvent) => {
+                          streamManager?.requestQualityChange(event.target.value as QualityTier);
+                        }}
+                      >
+                        {QUALITY_OPTIONS.map(({value, label, description}) => (
                           <MenuItem key={value} value={value} sx={{display: 'block', whiteSpace: 'normal', maxWidth: '22em'}}>
                             <Typography variant="body2">{label}</Typography>
                             <Typography variant="caption" color="text.secondary" sx={{display: 'block'}}>{description}</Typography>

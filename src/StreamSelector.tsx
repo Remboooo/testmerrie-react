@@ -3,7 +3,7 @@ import { SyntheticEvent, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { StreamMap, StreamProtocol, StreamQuality } from './BamApi';
-import { Button, Card, CardActionArea, CardActions, CardContent, CardMedia, Divider, FormControl, FormControlLabel, FormLabel, Link, Radio, RadioGroup } from '@mui/material';
+import { Card, CardActionArea, CardContent, CardMedia, Divider, FormControl, FormControlLabel, FormLabel, Link, Radio, RadioGroup } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
@@ -17,10 +17,6 @@ export type StreamSelectorProps = {
     currentStream: StreamSelection,
     endedStream: StreamSelection,
 };
-
-const qualityNames = new Map<string, string>([
-    ["abr", "auto"],
-]);
 
 export default function StreamSelector(props: StreamSelectorProps) {
     const {
@@ -113,21 +109,6 @@ export default function StreamSelector(props: StreamSelectorProps) {
                             </Typography>
                         </CardContent>
                     </CardActionArea>
-                    <CardActions>
-                    {Object.entries(props.streams).map(([qualityString, protocolMap], i) => {
-                        const quality = qualityString as StreamQuality; // for some reason Object.entries(T) returns [string, string] tuples in stead of [keyof T, string]
-                        
-                        const isSelectedQuality = isSelected && currentStream?.quality === quality;
-                        return <Button 
-                            key={quality} 
-                            variant={isSelectedQuality ? "contained" : "text"}
-                            size="small"
-                            onClick={() => selectStream(key, null, quality)}
-                        >
-                            {qualityNames.get('' + quality) || quality}
-                        </Button>
-                    })}
-                    </CardActions>
                 </Card>
             );
         })}</>;

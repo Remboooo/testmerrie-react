@@ -3,7 +3,8 @@ import { getStreams, IdleStreamSpec, StreamMap, StreamProtocol, StreamQuality, S
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
-const DEFAULT_QUALITY = "full";
+export type QualityTier = "auto" | "best" | "balanced" | "saver";
+export const DEFAULT_QUALITY_TIER: QualityTier = "auto";
 
 export type StreamSelectionRequest = {
     key: string|null,
@@ -28,6 +29,37 @@ export type AvailableStreamUpdate = {
 
 export type AvailableStreamListener = (update: AvailableStreamUpdate) => void;
 export type SelectedStreamListener = (selection: StreamSelection) => void;
+
+// Quality rendition names are dynamic and owned by the backend; a tier expresses
+// the user's stable intent and resolves to whatever a given stream actually offers.
+const ADAPTIVE_QUALITY_NAMES = ["abr", "auto"];
+const SOURCE_QUALITY_NAMES = ["full", "source", "original"];
+
+function qualityRank(name: string): number {
+    if (SOURCE_QUALITY_NAMES.includes(name)) return Infinity;
+    const match = name.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+}
+
+export function resolveQualityTier(streams: StreamQualityMap, tier: QualityTier): StreamQuality {
+    const names = Object.keys(streams);
+    const adaptive = names.find(n => ADAPTIVE_QUALITY_NAMES.includes(n));
+    const concrete = names
+        .filter(n => !ADAPTIVE_QUALITY_NAMES.includes(n))
+        .sort((a, b) => qualityRank(b) - qualityRank(a)); // heaviest first
+    switch (tier) {
+        case "best": return concrete[0] ?? adaptive ?? names[0];
+        case "saver": return concrete[concrete.length - 1] ?? adaptive ?? names[0];
+        case "balanced": return concrete.length ? concrete[Math.floor(concrete.length / 2)] : (adaptive ?? names[0]);
+        case "auto":
+        default: return adaptive ?? concrete[0] ?? names[0];
+    }
+}
+
+function readQualityTier(): QualityTier {
+    const v = localStorage.getItem("qualityTier");
+    return (v === "auto" || v === "best" || v === "balanced" || v === "saver") ? v : DEFAULT_QUALITY_TIER;
+}
 
 export class StreamManager {
     scheduledUpdate: NodeJS.Timeout|null = null;
@@ -65,6 +97,7 @@ export class StreamManager {
     // WebRTC.js:107 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
     // private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
     private _autoStart: boolean = false;
+    private _qualityTier: QualityTier = readQualityTier();
     
     private updateStreamsOnce() {
         return getStreams().then(response => {
@@ -88,12 +121,10 @@ export class StreamManager {
         if (this._autoStart) {
             const streamEntries = Object.entries(this.availableStreams);
             if (this.selectedStream === null && streamEntries.length > 0) {
-                let streamKey = streamEntries[0][0];
-                let streamDef = streamEntries[0][1];
-                let availableQualities = Object.getOwnPropertyNames(streamDef.streams);
-                if (availableQualities.length) {
-                    let quality = Object.hasOwn(streamDef.streams, DEFAULT_QUALITY) ? DEFAULT_QUALITY : Object.getOwnPropertyNames(streamDef.streams)[0];
-                    this.selectedStream = {key: streamKey, stream: streamDef, protocol: DEFAULT_PROTOCOL, quality: quality};
+                const [streamKey, streamDef] = streamEntries[0];
+                if (Object.keys(streamDef.streams).length) {
+                    const quality = resolveQualityTier(streamDef.streams, this._qualityTier);
+                    this.selectedStream = {key: streamKey, stream: streamDef, protocol: DEFAULT_PROTOCOL, quality};
                     this.notify();
                 }
             }
@@ -139,9 +170,15 @@ export class StreamManager {
             return null;
         }
         const stream = this.availableStreams[request.key];
-        const defaultQuality = Object.keys(stream.streams)[0];
+        // Cards no longer pick a quality; an explicit request quality is still
+        // honoured (e.g. resuming an ended stream), otherwise the global tier
+        // resolves against whatever this stream offers.
         const quality: StreamQuality = (request.quality !== null && request.quality in stream.streams)
-            ? request.quality : defaultQuality;
+            ? request.quality
+            : resolveQualityTier(stream.streams, this._qualityTier);
+        if (quality === undefined || !(quality in stream.streams)) {
+            return null;
+        }
         const protocol: StreamProtocol = (request.protocol !== null && request.protocol in stream.streams[quality])
             ? request.protocol : DEFAULT_PROTOCOL;
         return {key: request.key, stream, protocol, quality};
@@ -185,5 +222,23 @@ export class StreamManager {
         if (newVal) {
             this.checkAutoStart();
         }
+    }
+
+    get qualityTier(): QualityTier {
+        return this._qualityTier;
+    }
+
+    requestQualityChange(tier: QualityTier) {
+        localStorage.setItem('qualityTier', tier);
+        this._qualityTier = tier;
+        // Re-resolve the current stream to the new tier (like a protocol change).
+        if (this.selectedStream !== null) {
+            this.selectedStream = this.resolveSelection({
+                key: this.selectedStream.key,
+                quality: null,
+                protocol: this.selectedStream.protocol,
+            });
+        }
+        this.notify();
     }
   }
