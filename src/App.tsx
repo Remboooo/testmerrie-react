@@ -1,13 +1,14 @@
 import './App.css';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import OvenPlayerComponent, { OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
+import OvenPlayerComponent, { OvenPlayerQualityLevel, OvenPlayerSource, OvenPlayerSourceType, OvenPlayerState } from './OvenPlayer'
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, NO_SELECTION, QualityTier, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
+import StatsHud, { BufferInfo } from './StatsHud';
 import { useStreamManager } from './useStreamManager';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
@@ -98,6 +99,13 @@ export default function App() {
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
   const [useCrtFilter, setUseCrtFilter] = usePersistedState<boolean>("crtFilter", false, (v) => v === "true");
   const [useChromaFilter, setUseChromaFilter] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
+  const [useStatsHud, setUseStatsHud] = usePersistedState<boolean>("statsHud", false, (v) => v === "true");
+  // Live player telemetry for the stats HUD, held in refs so the frequent
+  // buffer/quality updates don't re-render App; the HUD polls them at 1 Hz.
+  const liveQualityRef = useRef<OvenPlayerQualityLevel | null>(null);
+  const bufferRef = useRef<BufferInfo | null>(null);
+  const hlsRef = useRef<any>(null);
+  useEffect(() => { liveQualityRef.current = null; bufferRef.current = null; }, [selectedStream]);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
@@ -267,7 +275,10 @@ export default function App() {
               paused={ccConnected}
               startAtRandomOffset={sourcesList.isPlaceholder}
               reloadNonce={reloadNonce}
-              onQualityLevelChanged={(event) => {console.log("Quality level changed to " + event.currentQuality.index + ": " + event.currentQuality.width + "×" + event.currentQuality.height + "@" + event.currentQuality.bitrate + "bps: '" + event.currentQuality.label + "'");}}
+              onQualityLevelChanged={(event) => {liveQualityRef.current = event.currentQuality;}}
+              onBufferChanged={(event) => {bufferRef.current = {buffer: event.buffer, position: event.position};}}
+              onHlsPrepared={(hls) => {hlsRef.current = hls;}}
+              onHlsDestroyed={() => {hlsRef.current = null;}}
             />
             <div className="crtOverlay" />
           </div>
@@ -313,6 +324,16 @@ export default function App() {
             Er gaat iets niet goed 😞<br />
             Probeer het nog eens?
           </div>
+          {useStatsHud && selectedStream && (
+            <StatsHud
+              playerState={playerState}
+              selection={selectedStream}
+              qualityTier={qualityTier}
+              liveQualityRef={liveQualityRef}
+              bufferRef={bufferRef}
+              hlsRef={hlsRef}
+            />
+          )}
           <Drawer
             className="drawer"
             open={drawerOpen}
@@ -419,6 +440,9 @@ export default function App() {
                   <FormControlLabel control={
                     <Checkbox checked={useChromaFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseChromaFilter(checked);}} />
                   } label="🎨" />
+                  <FormControlLabel control={
+                    <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
+                  } label="📊" />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
                     <Checkbox 
                       onClick={() => toggleFullscreen()}
