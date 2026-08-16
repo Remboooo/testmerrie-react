@@ -11,7 +11,7 @@
   border-radius: 6px;
   color: #e0e0e0;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
   pointer-events: none;
   backdrop-filter: blur(2px);
@@ -21,11 +21,7 @@
 }
 
 .stats-col {
-  width: 21em; /* fixed so the panel doesn't reflow as values expand/shrink */
-}
-
-.stats-value {
-  white-space: nowrap;
+  width: 22em; /* fixed so the panel doesn't reflow as values expand/shrink */
 }
 
 .stats-heading {
@@ -41,16 +37,19 @@
 
 .stats-row {
   display: flex;
-  justify-content: space-between;
-  gap: 1em;
+  flex-wrap: wrap;
+  gap: 0 1em;
 }
 
 .stats-label {
   color: #9aa0a6;
+  flex-shrink: 0;
 }
 
 .stats-value {
   color: #f1f1f1;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+  margin-left: auto; /* push right; wraps to its own line if the row is too tight */
 }
