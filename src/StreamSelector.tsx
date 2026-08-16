@@ -118,10 +118,11 @@ export default function StreamSelector(props: StreamSelectorProps) {
         <Box 
             className="stream-selector"
             sx={{
-                p: 1, 
+                p: 1,
                 width: '100%',
                 flexGrow: 1,
-                display: 'flex'
+                display: 'flex',
+                alignItems: 'flex-start' // size cards to content, don't stretch to container height
             }}
         >
             {content}
