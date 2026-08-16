@@ -49,9 +49,11 @@ export default defineConfig({
         // cached across our frequent app-only deploys.
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // ovenplayer is a large, self-contained lib with no cycles into the
+            // react/mui graph, so it splits cleanly. Everything else (react, mui,
+            // emotion, ...) MUST stay in one chunk — splitting that interdependent
+            // graph apart creates cross-chunk init cycles ("exports of undefined").
             if (id.includes('ovenplayer')) return 'ovenplayer';
-            if (id.includes('@mui') || id.includes('@emotion') || id.includes('@popperjs')) return 'mui';
-            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) return 'react';
             return 'vendor';
           }
         },
