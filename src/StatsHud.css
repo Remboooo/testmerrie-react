@@ -6,16 +6,14 @@
   display: flex;
   gap: 1.5em;
   margin: 0.75em;
-  padding: 0.6em 0.85em;
-  background: rgba(0, 0, 0, 0.72);
-  border-radius: 6px;
   color: #e0e0e0;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
   pointer-events: none;
-  /* No backdrop-filter: it forces the video off the hardware overlay path and
-     subtly dims the whole frame while the HUD is shown. */
+  /* No panel background or blur — a text-shadow keeps it legible over video
+     without forcing the frame through an expensive composite path. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.9);
   max-width: calc(100% - 1.5em);
   flex-wrap: wrap;
 }
