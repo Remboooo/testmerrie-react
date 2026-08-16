@@ -137,10 +137,10 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
                 <Row label="Status" value={STATE_LABELS[playerState] ?? playerState} />
                 <Row label="Protocol" value={selection?.protocol} />
                 <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${selection?.quality ?? "—"}`} />
-                <Row label="Rendition (live)" value={renditionStr} />
-                {liveFps != null && <Row label="FPS (live)" value={Math.round(liveFps)} />}
-                <Row label="Buffer" value={bufferSec !== null ? `${bufferSec.toFixed(1)} s` : null} />
-                <Row label="Verbinding (schatting)" value={bandwidthEstimate ? formatBitrate(bandwidthEstimate) : null} />
+                <Row label="Rendition" value={renditionStr} />
+                {liveFps != null && <Row label="FPS" value={Math.round(liveFps)} />}
+                {bufferSec != null && <Row label="Buffer" value={`${bufferSec.toFixed(1)} s`} />}
+                {bandwidthEstimate != null && <Row label="Verbinding (schatting)" value={formatBitrate(bandwidthEstimate)} />}
             </div>
         </div>
     );
