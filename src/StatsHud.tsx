@@ -75,7 +75,7 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
                 <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${selection?.quality ?? "—"}`} />
                 <Row label="Rendition" value={live ? `${live.width}×${live.height} · ${formatBitrate(Number(live.bitrate))}` : null} />
                 <Row label="Buffer" value={bufferSec !== null ? `${bufferSec.toFixed(1)} s` : null} />
-                <Row label="Bandbreedte" value={bandwidth ? formatBitrate(bandwidth) : null} />
+                <Row label="Verbinding (schatting)" value={bandwidth ? formatBitrate(bandwidth) : null} />
             </div>
         </div>
     );
