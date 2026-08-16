@@ -60,6 +60,8 @@ export type OvenPlayerProps = {
     onAllPlaylistEnded: () => void,
     onHlsPrepared: (hlsObject: any) => void,
     onHlsDestroyed: () => void,
+    onPeerConnectionPrepared: (peerConnection: RTCPeerConnection) => void,
+    onPeerConnectionDestroyed: () => void,
     onDashPrepared: (dashObject: any) => void,
     onDashDestroyed: () => void,
     onDestroy: () => void,
@@ -98,6 +100,8 @@ export default function OvenPlayerComponent({
         onAllPlaylistEnded = () => {},
         onHlsPrepared = (obj) => {},
         onHlsDestroyed = () => {},
+        onPeerConnectionPrepared = (pc) => {},
+        onPeerConnectionDestroyed = () => {},
         onDashPrepared = (obj) => {},
         onDashDestroyed = () => {},
         onDestroy = () => {},
@@ -185,6 +189,10 @@ export default function OvenPlayerComponent({
             thePlayer.on('allPlaylistEnded', onAllPlaylistEnded);
             thePlayer.on('hlsPrepared', onHlsPrepared);
             thePlayer.on('hlsDestroyed', onHlsDestroyed);
+            // OME's WebRTC provider hands us the raw RTCPeerConnection so we can
+            // read live getStats() (bitrate/fps/resolution) — hls has no equivalent.
+            thePlayer.on('peerConnectionPrepared', onPeerConnectionPrepared);
+            thePlayer.on('peerConnectionDestroyed', onPeerConnectionDestroyed);
             thePlayer.on('dashPrepared', onDashPrepared);
             thePlayer.on('dashDestroyed', onDashDestroyed);
             thePlayer.on('destroy', onDestroy);

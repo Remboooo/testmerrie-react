@@ -105,7 +105,8 @@ export default function App() {
   const liveQualityRef = useRef<OvenPlayerQualityLevel | null>(null);
   const bufferRef = useRef<BufferInfo | null>(null);
   const hlsRef = useRef<any>(null);
-  useEffect(() => { liveQualityRef.current = null; bufferRef.current = null; }, [selectedStream]);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  useEffect(() => { liveQualityRef.current = null; bufferRef.current = null; pcRef.current = null; }, [selectedStream]);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
@@ -279,6 +280,8 @@ export default function App() {
               onBufferChanged={(event) => {bufferRef.current = {buffer: event.buffer, position: event.position};}}
               onHlsPrepared={(hls) => {hlsRef.current = hls;}}
               onHlsDestroyed={() => {hlsRef.current = null;}}
+              onPeerConnectionPrepared={(pc) => {pcRef.current = pc;}}
+              onPeerConnectionDestroyed={() => {pcRef.current = null;}}
             />
             <div className="crtOverlay" />
           </div>
@@ -332,6 +335,7 @@ export default function App() {
               liveQualityRef={liveQualityRef}
               bufferRef={bufferRef}
               hlsRef={hlsRef}
+              pcRef={pcRef}
             />
           )}
           <Drawer
