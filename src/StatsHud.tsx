@@ -33,7 +33,7 @@ export type StatsHudProps = {
     pcRef: MutableRefObject<RTCPeerConnection | null>;
 };
 
-type WebrtcLive = { width?: number; height?: number; bitrate?: number; fps?: number };
+type WebrtcLive = { width?: number; height?: number; bitrate?: number; fps?: number; avail?: number };
 
 function Row({ label, value }: { label: string; value: ReactNode }) {
     return (
@@ -51,32 +51,49 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 export default function StatsHud({ playerState, selection, qualityTier, liveQualityRef, bufferRef, hlsRef, pcRef }: StatsHudProps) {
     const [, setTick] = useState(0);
     const webrtcLiveRef = useRef<WebrtcLive | null>(null);
-    const prevRef = useRef<{ bytes: number; ts: number } | null>(null);
+    const prevRef = useRef<{ bytes: number; ts: number; bitrate?: number } | null>(null);
     useEffect(() => {
         const id = setInterval(() => {
             const pc = pcRef.current;
+            // The <video> element always knows its painted resolution — Firefox in
+            // particular often omits frameWidth/frameHeight from inbound-rtp stats.
+            const vidEl = document.querySelector<HTMLVideoElement>(".ovenplayer video");
             if (pc) {
                 // WebRTC has no bandwidth-estimate accessor, but we can measure the
                 // real inbound video stream: bitrate from the bytesReceived delta,
-                // plus fps/resolution straight off the inbound-rtp report.
+                // plus fps off the inbound-rtp report.
                 pc.getStats().then((report) => {
-                    let vid: any;
+                    let vid: any, pair: any;
                     report.forEach((s: any) => {
                         if (s.type === "inbound-rtp" && (s.kind === "video" || s.mediaType === "video")) vid = s;
+                        // The selected ICE candidate pair carries the receiver's
+                        // available-bandwidth estimate (when the browser reports it).
+                        if (s.type === "candidate-pair" && (s.nominated || s.selected || s.state === "succeeded")) pair = s;
                     });
+                    const prev = prevRef.current;
+                    let bitrate = prev?.bitrate;
                     if (vid) {
-                        const now = { bytes: vid.bytesReceived ?? 0, ts: vid.timestamp };
-                        const prev = prevRef.current;
-                        const bitrate = (prev && now.ts > prev.ts)
-                            ? (now.bytes - prev.bytes) * 8 / ((now.ts - prev.ts) / 1000)
-                            : undefined;
-                        prevRef.current = now;
-                        webrtcLiveRef.current = { width: vid.frameWidth, height: vid.frameHeight, fps: vid.framesPerSecond, bitrate };
+                        const bytes = vid.bytesReceived ?? 0;
+                        const ts = vid.timestamp as number;
+                        if (prev && ts > prev.ts) {
+                            bitrate = (bytes - prev.bytes) * 8 / ((ts - prev.ts) / 1000);
+                        }
+                        prevRef.current = { bytes, ts, bitrate };
                     }
+                    webrtcLiveRef.current = {
+                        width: vid?.frameWidth || vidEl?.videoWidth || undefined,
+                        height: vid?.frameHeight || vidEl?.videoHeight || undefined,
+                        fps: vid?.framesPerSecond,
+                        bitrate,
+                        avail: pair?.availableIncomingBitrate,
+                    };
                 }).catch(() => {});
             } else {
+                // No peer connection captured: still surface resolution from the element.
                 prevRef.current = null;
-                webrtcLiveRef.current = null;
+                webrtcLiveRef.current = vidEl?.videoWidth
+                    ? { width: vidEl.videoWidth, height: vidEl.videoHeight }
+                    : null;
             }
             setTick(t => t + 1);
         }, 1000);
@@ -86,7 +103,9 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
     const video = selection?.stream.video;
     const audio = selection?.stream.audio;
     const buf = bufferRef.current;
-    const bufferSec = buf ? Math.max(0, buf.buffer - buf.position) : null;
+    const bufferSec = buf && isFinite(buf.buffer) && isFinite(buf.position)
+        ? Math.max(0, buf.buffer - buf.position)
+        : null;
     const bandwidth = hlsRef.current?.bandwidthEstimate as number | undefined;
 
     // Live "Nu" rendition: measured from WebRTC getStats, or the nominal hls level.
@@ -100,6 +119,9 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
     const renditionStr = (liveW && liveH)
         ? `${liveW}×${liveH}${liveBitrate ? ` · ${formatBitrate(liveBitrate)}` : ""}`
         : null;
+    // hls.js exposes a throughput estimate; WebRTC's (when present) rides on the
+    // selected ICE candidate pair.
+    const bandwidthEstimate = isWebrtc ? wrtc?.avail : bandwidth;
 
     return (
         <div className="stats-hud">
@@ -118,7 +140,7 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
                 <Row label="Rendition (live)" value={renditionStr} />
                 {liveFps != null && <Row label="FPS (live)" value={Math.round(liveFps)} />}
                 <Row label="Buffer" value={bufferSec !== null ? `${bufferSec.toFixed(1)} s` : null} />
-                <Row label="Verbinding (schatting)" value={bandwidth ? formatBitrate(bandwidth) : null} />
+                <Row label="Verbinding (schatting)" value={bandwidthEstimate ? formatBitrate(bandwidthEstimate) : null} />
             </div>
         </div>
     );
