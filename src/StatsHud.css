@@ -21,7 +21,7 @@
 }
 
 .stats-col {
-  width: 22em; /* fixed so the panel doesn't reflow as values expand/shrink */
+  width: 26em; /* fixed so the panel doesn't reflow as values expand/shrink */
 }
 
 .stats-heading {
