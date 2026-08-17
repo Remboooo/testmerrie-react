@@ -341,9 +341,8 @@ export default function App() {
           <Drawer
             className="drawer"
             open={drawerOpen}
-            onClose={() => {setMouseOnDrawer(false);}}
+            onClose={(event, reason) => {setMouseOnDrawer(false); if (reason === 'backdropClick' && !userNeedsDrawer) setDrawerOpen(false);}}
             onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
-            ModalProps={{ onBackdropClick: () => {if (!userNeedsDrawer) setDrawerOpen(false);} }}
             anchor="top"
           >
             <Box
@@ -380,7 +379,7 @@ export default function App() {
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
                 <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
-                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => {setMuted(!effectivelyMuted); setClickCount(clickCount+1);}}
                       checked={effectivelyMuted}
@@ -391,7 +390,7 @@ export default function App() {
                     <Slider sx={{width: '10em', color: (effectivelyMuted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => {setMuted(false); setClickCount(clickCount+1);}} onChange={(event, newValue) => {setVolume(newValue as number); setMuted(false); setClickCount(clickCount+1);}} />
                     <VolumeUp />
                   </Stack>
-                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <FormControl size="small">
                       <InputLabel id="demo-select-small-label">Protocol</InputLabel>
                       <Select
@@ -447,8 +446,8 @@ export default function App() {
                   <FormControlLabel control={
                     <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
                   } label="📊" />
-                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex' }} alignItems="center">
-                    <Checkbox 
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
+                    <Checkbox
                       onClick={() => toggleFullscreen()}
                       checked={!!window.document.fullscreenElement}
                       icon={<Fullscreen />} 
