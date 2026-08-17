@@ -4,77 +4,106 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-React web frontend ("bam2" / "Testmerrie") that plays multiple simultaneous livestreams served by **OvenMediaEngine (OME)**. It talks to a Python middleware, **testmerrie-api**, which handles Discord auth and hands out per-stream, token-signed playback URLs. UI copy is in Dutch.
+React web frontend ("Testmerrie" / historically "bam2") that plays multiple simultaneous livestreams served by **OvenMediaEngine (OME)**. It talks to a Python middleware, **testmerrie-api**, which handles Discord auth and hands out per-stream, token-signed playback URLs. UI copy is in Dutch.
 
 Related projects live on this machine (not in this repo):
-- Middleware: `/mnt/zfs/opt/testmerrie-api` (Python WSGI; owns `/api/v1/*`, Discord token exchange, stream discovery)
-- Media server: `/mnt/zfs/opt/ovenmediaengine` (OME; serves LLHLS + WebRTC)
+- Middleware: `/mnt/zfs/opt/testmerrie-api` (Python WSGI on the homemade **sprong** framework; owns `/api/v1/*`, Discord token exchange, server-side sessions, stream discovery). Session store: `auth/sessionstore.py` (sqlite).
+- Media server: `/mnt/zfs/opt/ovenmediaengine` (OME; serves LLHLS + WebRTC + TS-HLS). Logs: `/var/log/ovenmediaengine/ovenmediaengine.log` (world-readable).
 
 ## Commands
 
 ```bash
-npm install          # Node 18 toolchain (see @types/node ^18)
-npm start            # dev server on 0.0.0.0:3000 with HMR
-npm run build        # production build to ./build
-npm test             # Jest in watch mode
-CI=true npm test     # single non-watch run (use this in automation)
+npm install          # Node 18 toolchain
+npm run dev          # Vite dev server on 0.0.0.0:3000 (proxies /api -> prod, see below)
+npm run build        # tsc --noEmit && vite build  ->  ./build
+npm run check        # tsc --noEmit && vitest run   (the gate to run before committing)
+npm test             # vitest run (single pass)
+npm run test:watch   # vitest watch
+npm run typecheck    # tsc --noEmit
 npm test -- StreamManager   # run tests matching a pattern
 ```
 
-There is **no lint script and no typecheck script**. ESLint runs as a webpack plugin during `start`/`build` (config: `eslint-config-react-app`). To typecheck manually: `npx tsc --noEmit`. TypeScript is in `strict` mode.
+TypeScript is in `strict` mode. `npm run build` **type-checks first**, so a type error fails the build. There is no separate lint step.
 
-## Build system — ejected Create React App
+## Deploy workflow
 
-This is an **ejected CRA** app. The real webpack/Babel/Jest config lives in `config/` and `scripts/`, not behind `react-scripts`. `npm start|build|test` run `scripts/start.js|build.js|test.js` directly.
+The user tests against **live prod** (`https://testmerrie.nl`) — there is no staging. Deploy each change so it can be tried:
 
-Implications for the planned refactor:
-- Dependency bumps can break the hand-held webpack config in `config/webpack.config.js`. There is no `react-scripts` upgrade path — migrating to Vite (or re-adopting a managed toolchain) is the realistic modernization route.
-- Node polyfills for browser (`crypto-browserify`, `stream-browserify`, `buffer`, etc.) are pulled in **because `discord-oauth2` is run client-side** (see Auth below). Removing that dependency removes most of these polyfills.
-- Jest config lives in `package.json` under `"jest"` plus transforms in `config/jest/`.
+```bash
+npm run build
+cp -a build/. /var/www/testmerrie/     # non-destructive: hashed assets accumulate, only index.html is overwritten
+grep -oE 'assets/index-[^"]+\.js' /var/www/testmerrie/index.html   # confirm the new bundle hash is live
+curl -s -o /dev/null -w '%{http_code}\n' https://testmerrie.nl/
+```
+
+`/var/www/testmerrie` is writable (rem owns the files); its parent `/var/www` is **not**, so you can't write a sibling backup there. Reverting = point `index.html` back at a prior `assets/index-*.js` (old hashed chunks remain). A build version stamp (`__APP_VERSION__` = `git describe`, `__BUILD_TIME__`, injected via Vite `define`) shows top-right of the drawer so you can tell which build is live.
+
+**Git flow:** feature branch → commit → build/deploy for the user to test → once confirmed, fast-forward master (`git branch -f master <branch>; git checkout master; git branch -d <branch>`). Nothing is pushed to origin. Commits end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+
+## Environment constraints (important)
+
+**No sudo.** You cannot restart `testmerrie-api` (uwsgi), OME, or nginx, nor edit root-owned files (OME `Server.xml`, `nginx.conf`, possibly `.env`). When a change needs one of those, make the edit if you can and **ask the user to apply/restart** it. The user runs OME/API/nginx restarts.
+
+## Build system — Vite (migrated off ejected CRA)
+
+This was an ejected Create React App; it is now **Vite 6 + Vitest + TypeScript 5**. Real config is `vite.config.ts` (there is no `config/`/`scripts/` CRA machinery, no `react-scripts`).
+
+- Dev has no local API; `vite.config.ts` **proxies `/api` to `https://testmerrie.nl`** (override with `VITE_DEV_API_TARGET`) with `cookieDomainRewrite` so the httpOnly session cookie is accepted same-origin in dev.
+- **Chunking (`build.rollupOptions.output.manualChunks`):** only `ovenplayer` (a large, self-contained ~550 kB lib) is split into its own chunk. **React/MUI/Emotion must stay together in one `vendor` chunk** — splitting that interdependent graph apart causes a cross-chunk init cycle ("can't access property exports of undefined"). App code is a tiny `index` chunk (~13 kB gz) so app-only deploys barely re-download anything.
+- Fonts: `@fontsource/roboto`, latin weights 300/400/500/700 only (imported in `index.tsx`). Do not reintroduce the deprecated `typeface-roboto`.
 
 ## Runtime environment loaded outside the bundle
 
-`public/index.html` loads things the React app depends on at runtime:
-- **hls.js** from a CDN (`cdn.jsdelivr.net`) — required by OvenPlayer for LLHLS.
-- **Google Cast sender SDK** (`gstatic.com`) — sets `window.__gcastAvailable`, which `Chromecast.tsx` polls for.
-- **SVG filter defs** (`crt-sphere`, `glow`, `chromatic-aberration`) — the 📺 CRT and 🎨 chroma toggles are CSS classes (`crtFilter`, `chromaFilter`) that reference these filters; the visual effect is defined here + in `App.css`, not in JS.
+`public/index.html` loads things the app depends on at runtime:
+- **hls.js** from a CDN — required by OvenPlayer for LLHLS/HLS (NOT bundled).
+- **Google Cast sender SDK** — sets `window.__gcastAvailable`, which `Chromecast.tsx` polls for.
+- **SVG filter defs** (`crt-sphere`, `glow`, `chromatic-aberration`) — the 📺 CRT and 🎨 chroma toggles are CSS classes referencing these filters; the visual effect lives here + in `App.css`, not in JS.
 
 ## Architecture
 
-The data flow is: **testmerrie-api** → `BamApi` (fetch + auth) → `StreamManager` (polling + selection state) → `App` (React state bridge) → `OvenPlayer` (playback) and `Chromecast` (casting).
+Data flow: **testmerrie-api** → `BamApi` (fetch + cookie auth) → `StreamManager` (polling + selection store) → `useStreamManager` (React bridge) → `App` → `OvenPlayer` (playback) / `Chromecast` (casting) / `StatsHud` (telemetry).
 
 ### Config (`src/config.tsx`)
-Environment config is **hardcoded in source**, branched on `process.env.NODE_ENV`. Note: the dev branch still points `bam.uri` at the **production** API (`https://testmerrie.nl/api`); only the Discord `redirectUri` differs (`localhost:3000`). There is no `.env`-driven config and no dev proxy — the dev server talks to the live API.
+Env-driven via `import.meta.env.VITE_*` (`VITE_API_BASE`, `VITE_DISCORD_CLIENT_ID`, `VITE_DISCORD_REDIRECT_URI`, `VITE_CHROMECAST_APP_ID`), set through Vite `.env` files. (The old hardcoded `NODE_ENV`-branched config is gone.)
 
-### Auth (`BamApi.tsx` + `DiscordAuth.tsx`)
-- Discord OAuth2 **authorization-code flow runs in the browser** via the `discord-oauth2` npm package. Token exchange/refresh actually hit the middleware endpoints (`/api/v1/token`, `/refresh-token`), but the OAuth client lib is bundled client-side — this is why the Node polyfills exist.
-- Tokens live in `localStorage` under `discord-oauth2`; CSRF `state` under `discord-oauth2-state`. `getHeaders()` attaches `Authorization: Bearer <accessToken>` to API calls.
-- `checkAuthentication()` handles the `/authcallback` redirect, refreshes tokens <24h from expiry, and installs a 60s refresh interval. `DiscordAuth` is a gate component: it renders `children` only once both Discord auth **and** the `/api/v1/auth` membership check succeed, otherwise shows login/refusal dialogs.
+### Auth — server-side httpOnly cookie sessions (`BamApi.tsx` + `DiscordAuth.tsx`)
+Discord OAuth2 **authorization-code flow, exchanged server-side**. The old client-side `discord-oauth2` package (and its Node polyfills) were removed.
+- `startAuthentication()` builds the Discord authorize URL with a Web-Crypto CSRF `state`; the `/authcallback` redirect calls `createSession()` → `POST /api/v1/session` (`credentials: 'include'`), and the middleware sets an **httpOnly session cookie** backed by a sqlite session store.
+- `getUserInfo()` / `getStreams()` use `credentials: 'include'`; `discardAuthentication()` → `DELETE /api/v1/session`. There are no tokens in `localStorage`.
+- `DiscordAuth` is a gate component: renders `children` only once the session **and** the `/api/v1/auth` membership check succeed, else shows login/refusal dialogs.
 
-### Stream state (`StreamManager.ts`)
-- **Plain TS class, not a React component.** It polls `getStreams()` every 5s (`UPDATE_INTERVAL`) and pushes updates to React via a listener pattern (`setAvailableStreamListener` / `setSelectedStreamListener`). `App` owns the single instance and wires the listeners to `useState` setters.
-- Polling is started/stopped based on drawer visibility (perf on weak machines) — see the `startUpdates`/`stopUpdates` effect in `App.tsx`.
-- Owns selection logic: a selection is `{key, stream, quality, protocol}`; `NO_SELECTION` clears it. `autoStart` (persisted to localStorage) auto-selects the first stream when one appears.
-- **Stream/quality/protocol model** (defined in `BamApi.tsx`): each stream exposes a `StreamQualityMap` (e.g. `abr`, `1080p`, `720p`) → `StreamProtocolUrlMap` with URLs per protocol: `llhls`, `webrtc-udp`, `webrtc-tcp`. Every playback URL is individually token-signed by the middleware.
+### Stream state (`StreamManager.ts` + `useStreamManager.ts`)
+- **Plain TS class used as an external store.** `subscribe(listener) → unsubscribe` + `notify()`; snapshots via `getAvailableStreams()` / `getSelectedStream()` / `getEndedSelection()` / `qualityTier`. `useStreamManager` wires it to React with `useSyncExternalStore`; `App` owns the instance. Polls `getStreams()` every 5 s; polling starts/stops with drawer visibility.
+- **Selection** = `{key, stream, quality, protocol}` (`NO_SELECTION` clears). `requestStreamSelection` / `requestProtocolChange` / `requestQualityChange`.
+- **Quality is a global intent tier**, not a per-stream pick: `auto | best | balanced | saver` (persisted `qualityTier`). `resolveQualityTier(streams, tier)` maps intent → whatever rendition a given stream actually offers (adaptive `abr` special-cased; concrete renditions ordered by resolution parsed from the name; `full`/`source` = top). Stream cards are single-click; there is a Quality dropdown next to Protocol in the drawer.
+- **Sticky "ended" streams:** `reconcileSelection()` runs each poll — if the playing stream vanishes it's kept as `endedSelection` (shown greyed in the selector, playback stops) and auto-resumed with the same quality/protocol when it reappears.
+- **Stream/quality/protocol types are the source of truth in `BamApi.tsx`** (`StreamMap` → `StreamQualityMap` → `StreamProtocolUrlMap`; protocols `llhls`, `hls`, `webrtc-udp`, `webrtc-tcp`). Every playback URL is individually token-signed by the middleware. `StreamSpec` also carries source `video`/`audio` metadata (res, fps, codec, bitrate, channels, samplerate) used by the stats HUD.
 
 ### Player (`OvenPlayer.tsx`)
-A React wrapper around the **imperative OvenPlayer library**, and the most fragile part of the app. It is full of deliberate workarounds — preserve them and their comments when refactoring:
-- Props mirror every OvenPlayer event as an `on*` callback; latest callbacks are held in refs to avoid re-creating the player.
-- Source changes load a dummy `mp4` before the real source, and WebRTC needs a manual `loading` state transition (OvenPlayer doesn't emit it).
-- The idle/placeholder stream is seeked to a random offset so the looping filler starts at a varied point.
-- `App` sets `rebuildOvenPlayer` to fully unmount/remount the player on source change — a workaround for OvenPlayer issue #370. Logout does a full `window.location.reload()` because the player dislikes being destroyed.
+React wrapper around the imperative OvenPlayer library — the most fragile part; preserve its workarounds and comments.
+- Props mirror OvenPlayer events as `on*` callbacks, held in refs so the player isn't re-created.
+- Source changes load a dummy `mp4` then the real source; WebRTC needs a manual `loading` transition. Idle/placeholder is seeked to a random offset.
+- **Rebuild-on-source-change is now a React `key`** (`sourceKey` in `App`), not the old `rebuildOvenPlayer` state. `reloadNonce` triggers an in-place source reload for retries **without** unmounting the player (avoids a video blink) — driven by `usePlayerRetry` during OME's readiness window.
+- Exposes `onHlsPrepared` (hls.js object → bandwidth estimate) and `onPeerConnectionPrepared`/`onPeerConnectionDestroyed` (raw `RTCPeerConnection` → `getStats()`), consumed by the stats HUD.
+- Logout does a full `window.location.reload()` (the player dislikes being torn down).
 
 ### App shell (`App.tsx`)
-Single large stateful component (~460 lines) holding almost all UI state: selected/chromecast streams, protocol, volume/mute, drawer open/close, CRT/chroma/placeholder toggles, fullscreen. Many settings persist to `localStorage`. It maps a `StreamSelection` → `OvenPlayerSource[]` and, separately, → a Chromecast selection. The MUI `Drawer` (anchored top) is the control panel; open/close is driven by mouse-idle timers and by "needs" conditions (no stream, casting, error).
+Still the main stateful component but decomposed: state persistence via `usePersistedState`, stream store via `useStreamManager`, readiness retry via `usePlayerRetry`, crash isolation via `ErrorBoundary`. Derived state (`sourcesList`, `chromecastStream`) via `useMemo`. The MUI `Drawer` (anchored top) is the control panel — Protocol + Quality dropdowns, 🚂/📺/🎨/📊 toggles, volume; open/close driven by mouse-idle timers and "needs" conditions (no stream, casting, error).
+
+### Stats HUD (`StatsHud.tsx`)
+📊 toggle → bottom-left on-video overlay, two columns: **Bron** (source, from `StreamSpec.video`/`audio` metadata) vs **Nu** (live). Live numbers are captured into refs (quality/buffer via OvenPlayer events; hls.js object; `RTCPeerConnection`) and **polled at 1 Hz inside the HUD** so telemetry never re-renders `App`. WebRTC live bitrate/fps/resolution come from `pc.getStats()` (inbound-rtp; resolution falls back to the `<video>` element for Firefox). No `backdrop-filter` — it forced the video off the hardware-overlay path and dimmed the whole frame.
 
 ### Chromecast (`Chromecast.tsx`)
-- Custom receiver app (`config.chromecast.applicationId`) using a **custom message namespace** `urn:x-cast:nl.testmerrie`.
-- Handshake: on connect it sends `getSupportedFormats`, and only after the receiver replies does it send `play` with a URL. It **downgrades WebRTC → LLHLS** when the Chromecast generation can't do `H265/1080/60`.
-- Exposes `ChromecastSupport` (context provider, wraps the app) and `ChromecastButton` (consumer). When casting, local playback is paused.
+Custom receiver app + custom message namespace `urn:x-cast:nl.testmerrie`. Handshake sends `getSupportedFormats`, then `play`; downgrades WebRTC → LLHLS when the Chromecast can't do `H265/1080/60`. `ChromecastSupport` (provider) wraps the app; `ChromecastButton` consumes it. Local playback pauses while casting.
 
 ## Conventions
 
-- `.tsx` is used even for logic-only modules (`BamApi.tsx`, `config.tsx`); non-component logic that's already plain is `.ts` (`StreamManager.ts`, `FormatUtil.ts`).
-- Types for the stream/protocol/quality domain are the source of truth in `BamApi.tsx` and are imported widely — change them there.
-- Ambient/library types: `src/ovenplayer.d.ts`, `src/custom.d.ts`, `src/react-app-env.d.ts`.
-- Theme is MUI dark mode (`src/theme.ts`); snackbars via `notistack` (`SnackbarProvider` in `index.tsx`).
+- `.tsx` even for logic-only modules that started as components (`BamApi.tsx`, `config.tsx`); plain logic is `.ts` (`StreamManager.ts`, `FormatUtil.ts`, the hooks).
+- Domain types (stream/protocol/quality) live in `BamApi.tsx` and are imported widely — change them there.
+- Ambient/library types: `src/ovenplayer.d.ts` is the **authoritative** OvenPlayer module declaration (`@types/ovenplayer` was removed — it conflicts under TS 5). Also `src/vite-env.d.ts`.
+- Theme is MUI dark mode (`src/theme.ts`); snackbars via `notistack`.
+- Tests are colocated `*.test.ts` (vitest + Testing Library, jsdom): `StreamManager`, `BamApi`, `usePersistedState`, `usePlayerRetry`, `FormatUtil`. Add tests for new store/hook logic and keep `npm run check` green.
+
+## Refactor status (for context)
+
+A phased modernization is mostly complete: **Phase 1** server-side cookie auth · **Phase 2** ejected-CRA → Vite/TS5 · **Phase 4** App decomposed into hooks + StreamManager store · **Phase 5** player rebuild de-tangled (React key). Plus features: HLS protocol option, readiness retry + ErrorBoundary, sticky-ended streams, global quality tiers, stats HUD, nginx gzip, vendor-chunk split. **Remaining: Phase 3 — React 18→19 + MUI 5→7** (the biggest/riskiest bump; do it on a branch, one major at a time, `npm run check` + browser test between each). Deeper future idea: a slim custom OvenPlayer build (it's ~half the JS).
