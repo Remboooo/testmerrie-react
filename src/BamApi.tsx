@@ -197,10 +197,22 @@ async function handleAuthCallback(): Promise<void> {
     await createSession(code);
 }
 
+// Memoize the callback handling so duplicate callers within one page load (React
+// StrictMode double-invokes the mount effect; an accidental double-mount would
+// too) share a single execution. handleAuthCallback consumes one-shot values —
+// the CSRF state and the OAuth code — so a second run would find the state
+// already removed and throw a spurious "state mismatch". getUserInfo below is an
+// idempotent GET, so it's fine to leave unmemoized. A real reload re-initializes
+// the module, resetting the guard.
+let authCallbackPromise: Promise<void> | undefined;
+
 export async function checkAuthentication(): Promise<boolean> {
     if (window.location.pathname === "/authcallback") {
         try {
-            await handleAuthCallback();
+            if (!authCallbackPromise) {
+                authCallbackPromise = handleAuthCallback();
+            }
+            await authCallbackPromise;
         } finally {
             window.history.pushState(null, "", "/");
         }

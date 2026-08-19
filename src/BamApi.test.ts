@@ -71,6 +71,31 @@ describe('checkAuthentication', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ message: 'nope' }) }));
     await expect(checkAuthentication()).resolves.toBe(false);
   });
+
+  // Regression: StrictMode (and any accidental double-mount) invokes the mount
+  // effect twice, calling checkAuthentication() concurrently. The one-shot OAuth
+  // code and CSRF state must be consumed exactly once, or the second run throws
+  // "state mismatch". Isolated via resetModules so the module-level guard is fresh.
+  it('exchanges the OAuth code only once when invoked twice concurrently on /authcallback', async () => {
+    vi.resetModules();
+    localStorage.setItem(STATE_KEY, 'XYZ');
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { href: '', pathname: '/authcallback', search: '?code=abc&state=XYZ', hash: '' },
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ user: {}, member_of: {} }) }));
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+
+    const { checkAuthentication: freshCheck } = await import('./BamApi');
+    const [a, b] = await Promise.all([freshCheck(), freshCheck()]);
+    expect(a).toBe(true);
+    expect(b).toBe(true);
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    const sessionCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/session'));
+    expect(sessionCalls).toHaveLength(1); // code exchanged exactly once
+    pushState.mockRestore();
+  });
 });
 
 describe('discardAuthentication', () => {
