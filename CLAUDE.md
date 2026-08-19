@@ -106,4 +106,8 @@ Custom receiver app + custom message namespace `urn:x-cast:nl.testmerrie`. Hands
 
 ## Refactor status (for context)
 
-A phased modernization is mostly complete: **Phase 1** server-side cookie auth · **Phase 2** ejected-CRA → Vite/TS5 · **Phase 4** App decomposed into hooks + StreamManager store · **Phase 5** player rebuild de-tangled (React key). Plus features: HLS protocol option, readiness retry + ErrorBoundary, sticky-ended streams, global quality tiers, stats HUD, nginx gzip, vendor-chunk split. **Remaining: Phase 3 — React 18→19 + MUI 5→7** (the biggest/riskiest bump; do it on a branch, one major at a time, `npm run check` + browser test between each). Deeper future idea: a slim custom OvenPlayer build (it's ~half the JS).
+The phased modernization is **complete**: **Phase 1** server-side cookie auth · **Phase 2** ejected-CRA → Vite/TS5 · **Phase 3** React 18→19 + MUI 5→9 + notistack 2→3 (done 2026-08-19) · **Phase 4** App decomposed into hooks + StreamManager store · **Phase 5** player rebuild de-tangled (React key). Plus features: HLS protocol option, readiness retry + ErrorBoundary, sticky-ended streams, global quality tiers, stats HUD, nginx gzip, vendor-chunk split.
+
+**StrictMode is intentionally off.** It's dev-only (no prod effect); it was trialled during Phase 3 and caught a real auth-callback idempotency bug (now fixed in `BamApi`), but the imperative OvenPlayer wrapper doesn't survive its double-mount (create→destroy→create with preserved state → black video). Don't re-enable `<StrictMode>` without first making `OvenPlayer.tsx`'s destroy/recreate path survive a same-instance remount.
+
+Deeper future idea: a slim custom OvenPlayer build (it's ~half the JS).
