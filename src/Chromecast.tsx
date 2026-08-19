@@ -82,10 +82,10 @@ export function ChromecastSupport(props: Partial<CastContextProps>) {
     const [ccAvailable, setCcAvailable] = useState<boolean>();
     const [player, setPlayer] = useState<cast.framework.RemotePlayer>();
     const [controller, setController] = useState<cast.framework.RemotePlayerController>();
-    const ccSession = useRef<cast.framework.CastSession>();
-    const statusSnackbar = useRef<SnackbarKey>();
+    const ccSession = useRef<cast.framework.CastSession|undefined>(undefined);
+    const statusSnackbar = useRef<SnackbarKey|undefined>(undefined);
 
-    const querySentForStream = useRef<StreamSelection>();
+    const querySentForStream = useRef<StreamSelection|undefined>(undefined);
 
     function closeWarning() {
         emitWarning(undefined);

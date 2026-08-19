@@ -114,7 +114,7 @@ export default function OvenPlayerComponent({
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
     let containerElementRef = useRef<HTMLDivElement>(null);
-    let playerRef = useRef<OvenPlayerInstance>();
+    let playerRef = useRef<OvenPlayerInstance|undefined>(undefined);
     let volumeRef = useRef<number>(volume);
     let mutedRef = useRef<boolean>(muted);
     let startAtRandomOffsetRef = useRef<boolean>(startAtRandomOffset);
@@ -123,7 +123,7 @@ export default function OvenPlayerComponent({
 
     let [loadedSources, setLoadedSources] = useState<OvenPlayerSource[]>([]);
 
-    let seekedToRandomRef = useRef<boolean>();
+    let seekedToRandomRef = useRef<boolean|undefined>(undefined);
 
     volumeRef.current = volume;
     mutedRef.current = muted;

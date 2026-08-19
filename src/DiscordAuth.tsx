@@ -14,7 +14,7 @@ type DiscordAuthProps = {
     children?: React.ReactNode;
 }
 
-export default function DiscordAuth(props: DiscordAuthProps): JSX.Element {
+export default function DiscordAuth(props: DiscordAuthProps): React.JSX.Element {
     const [discordAuthenticated, setDiscordAuthenticated] = useState<boolean|undefined>(undefined);
     const [discordAuthError, setDiscordAuthError] = useState<any>();
     const [apiAuthError, setApiAuthError] = useState<any>();

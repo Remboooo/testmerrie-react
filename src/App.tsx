@@ -129,10 +129,10 @@ export default function App() {
 
   const [logout, setLogout] = useState<() => void>();
 
-  const mouseOnDrawerOpenerTimeout = useRef<ReturnType<typeof setTimeout>|undefined>();
+  const mouseOnDrawerOpenerTimeout = useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const [mouseActiveOnDrawerOpener, setMouseActiveOnDrawerOpener] = useState<boolean>(false);
 
-  const mouseMovingTimeout = useRef<ReturnType<typeof setTimeout>|undefined>();
+  const mouseMovingTimeout = useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const [mouseVisibleOnVideo, setMouseVisibleOnVideo] = useState<boolean>(false);
 
   const [userInfo, setUserInfo] = useState<UserInfo>();
