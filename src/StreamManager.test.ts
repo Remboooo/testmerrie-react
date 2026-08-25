@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { StreamManager, NO_SELECTION, resolveQualityTier } from './StreamManager';
-import { StreamMap, StreamQualityMap } from './BamApi';
+import { StreamManager, NO_SELECTION, resolveQualityTier, resolveIdleSelection } from './StreamManager';
+import { StreamMap, StreamQualityMap, StreamSpec } from './BamApi';
 
 const Q = (names: string[]): StreamQualityMap => Object.fromEntries(names.map(n => [n, { llhls: n }]));
 
@@ -69,6 +69,28 @@ describe('resolveQualityTier', () => {
   it('degrades gracefully to the only rendition', () => {
     expect(resolveQualityTier(Q(['480p']), 'best')).toBe('480p');
     expect(resolveQualityTier(Q(['abr']), 'saver')).toBe('abr');
+  });
+});
+
+describe('resolveIdleSelection', () => {
+  const idle = (streams: StreamQualityMap): StreamSpec => ({ name: 'idle', streams });
+
+  it('is null when no idle stream is configured', () => {
+    expect(resolveIdleSelection(undefined, 'auto')).toBeNull();
+  });
+
+  it('is null when the idle stream is configured but no quality tier exists yet', () => {
+    expect(resolveIdleSelection(idle({}), 'auto')).toBeNull();
+  });
+
+  it('degrades to the only configured tier regardless of the requested one', () => {
+    const sel = resolveIdleSelection(idle(Q(['full'])), 'saver');
+    expect(sel).toMatchObject({ key: 'idle', quality: 'full', protocol: 'llhls' });
+  });
+
+  it('resolves through the same tier logic as a real stream once multiple qualities exist', () => {
+    const sel = resolveIdleSelection(idle(Q(['full', '720p', '480p'])), 'saver');
+    expect(sel).toMatchObject({ quality: '480p', protocol: 'llhls' });
   });
 });
 

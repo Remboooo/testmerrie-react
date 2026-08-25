@@ -69,7 +69,7 @@ export type OvenPlayerProps = {
     volume: number,
     muted: boolean,
     paused: boolean,
-    startAtRandomOffset: boolean,
+    startAtLiveEdge: boolean,
     reloadNonce: number,
 };
 
@@ -109,7 +109,7 @@ export default function OvenPlayerComponent({
         volume = 100,
         muted = false,
         paused = false,
-        startAtRandomOffset = false,
+        startAtLiveEdge = false,
         reloadNonce = 0,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
@@ -117,38 +117,46 @@ export default function OvenPlayerComponent({
     let playerRef = useRef<OvenPlayerInstance|undefined>(undefined);
     let volumeRef = useRef<number>(volume);
     let mutedRef = useRef<boolean>(muted);
-    let startAtRandomOffsetRef = useRef<boolean>(startAtRandomOffset);
+    let startAtLiveEdgeRef = useRef<boolean>(startAtLiveEdge);
     let onStateChangedRef = useRef(onStateChanged);
     let onQualityLevelChangedRef = useRef(onQualityLevelChanged);
 
     let [loadedSources, setLoadedSources] = useState<OvenPlayerSource[]>([]);
 
-    let seekedToRandomRef = useRef<boolean|undefined>(undefined);
+    let seekedToLiveEdgeRef = useRef<boolean|undefined>(undefined);
 
     volumeRef.current = volume;
     mutedRef.current = muted;
-    startAtRandomOffsetRef.current = startAtRandomOffset;
+    startAtLiveEdgeRef.current = startAtLiveEdge;
     onStateChangedRef.current = onStateChanged;
     onQualityLevelChangedRef.current = onQualityLevelChanged;
 
     const stateChangedCallback = useCallback((event: {prevstate: OvenPlayerState, newstate: OvenPlayerState}) => {
         if (playerRef.current) {
-            playerRef.current.setVolume(volumeRef.current); 
-            playerRef.current.setMute(mutedRef.current); 
+            playerRef.current.setVolume(volumeRef.current);
+            playerRef.current.setMute(mutedRef.current);
         }
         const player = playerRef.current;
-        const startAtRandomOffset = startAtRandomOffsetRef.current;
+        const startAtLiveEdge = startAtLiveEdgeRef.current;
         if (player && event.prevstate === "loading" && event.newstate === "playing") {
-            if ((!startAtRandomOffset) || (startAtRandomOffset && seekedToRandomRef.current)) {
+            if ((!startAtLiveEdge) || (startAtLiveEdge && seekedToLiveEdgeRef.current)) {
                 if (containerElementRef.current) {
                     containerElementRef.current.classList.remove("loading-content");
                 };
             }
 
-            if (startAtRandomOffset && !seekedToRandomRef.current) {
-                seekedToRandomRef.current = true;
-                let pos = (Date.now() * 1e-3) % player.getDuration();
-                console.log("Seek to " + pos + " / " + player.getDuration());
+            if (startAtLiveEdge && !seekedToLiveEdgeRef.current) {
+                seekedToLiveEdgeRef.current = true;
+                // Live source (OME Schedule/DVR window): every viewer sees the same
+                // real moment regardless of when they join, so seeking to the live
+                // edge is what actually lands everyone on the same (if arbitrary,
+                // since it depends on when you tuned in) spot. `getDuration()` here
+                // is the seekable range's end, not a fixed content length — it's
+                // NOT a stable per-file value, so `Date.now() % duration` (the
+                // previous approach) didn't sync anyone; it just picked a
+                // per-client, per-poll pseudo-random point in the DVR window.
+                let pos = player.getDuration();
+                console.log("Seek to live edge " + pos);
                 setTimeout(() => player.seek(pos));
             }
         }
@@ -251,9 +259,13 @@ export default function OvenPlayerComponent({
                 if (containerElementRef.current) {
                     containerElementRef.current.classList.add("loading-content");
                 };
-                seekedToRandomRef.current = false;
+                seekedToLiveEdgeRef.current = false;
                 playerRef.current.load([{type: "mp4", file: ""}]);
-                playerRef.current.load(sources);
+                // Clone: OvenPlayer mutates the source objects it's given in place
+                // (annotates type/label/default), which would otherwise corrupt our
+                // caller's `sources` prop and, since App keys the player off a string
+                // derived from it, spuriously look like a source change next render.
+                playerRef.current.load(sources.map(s => ({...s})));
                 playerRef.current.setCurrentSource(0);
             } else {
                 console.log("stopping");

@@ -1,5 +1,5 @@
 import { useSnackbar } from "notistack";
-import { getStreams, IdleStreamSpec, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
+import { getStreams, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
@@ -23,7 +23,7 @@ export type StreamSelection = {
 
 export type AvailableStreamUpdate = {
     streamMap: StreamMap,
-    idleStream: IdleStreamSpec | undefined,
+    idleStream: StreamSpec | undefined,
     refreshTimestamp: number,
 };
 
@@ -56,6 +56,19 @@ export function resolveQualityTier(streams: StreamQualityMap, tier: QualityTier)
     }
 }
 
+// The idle loop is a StreamSpec like any other, just not listed in streamMap
+// (and never protocol-switched — it plays whatever protocol its one publisher
+// offers). Undefined/empty streams (not configured, or not yet encoded at any
+// tier) resolve to no selection rather than throwing.
+export function resolveIdleSelection(idleStream: StreamSpec | undefined, tier: QualityTier): StreamSelection {
+    if (idleStream === undefined || Object.keys(idleStream.streams).length === 0) {
+        return null;
+    }
+    const quality = resolveQualityTier(idleStream.streams, tier);
+    const protocol = Object.keys(idleStream.streams[quality])[0] as StreamProtocol;
+    return { key: "idle", stream: idleStream, quality, protocol };
+}
+
 function readQualityTier(): QualityTier {
     const v = localStorage.getItem("qualityTier");
     return (v === "auto" || v === "best" || v === "balanced" || v === "saver") ? v : DEFAULT_QUALITY_TIER;
@@ -72,7 +85,7 @@ export class StreamManager {
     scheduledUpdate: NodeJS.Timeout|null = null;
     refreshTimestamp: number = 0;
     availableStreams: StreamMap = {};
-    idleStream: IdleStreamSpec | undefined = undefined;
+    idleStream: StreamSpec | undefined = undefined;
     selectedStream: StreamSelection = null;
     // When the playing stream disappears from the list we keep it here (shown
     // greyed/"ended") and auto-resume it if it comes back.

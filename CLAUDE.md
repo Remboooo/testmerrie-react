@@ -9,6 +9,7 @@ React web frontend ("Testmerrie" / historically "bam2") that plays multiple simu
 Related projects live on this machine (not in this repo):
 - Middleware: `/mnt/zfs/opt/testmerrie-api` (Python WSGI on the homemade **sprong** framework; owns `/api/v1/*`, Discord token exchange, server-side sessions, stream discovery). Session store: `auth/sessionstore.py` (sqlite).
 - Media server: `/mnt/zfs/opt/ovenmediaengine` (OME; serves LLHLS + WebRTC + TS-HLS). Logs: `/var/log/ovenmediaengine/ovenmediaengine.log` (world-readable).
+- Idle/placeholder loop: a `_filler` OME app (Schedule provider, `BypassTranscoder`, zero live transcoding) loops local files under `ovenmediaengine/media/` on a fixed real-time schedule (`_filler.sch`). 720p/480p tiers are pre-baked once offline via `ovenmediaengine/media/scripts/make_idle_renditions.sh` (nvenc) and registered as sibling schedules (`_filler_720.sch`, `_filler_480.sch`); testmerrie-api's `idleStream` config (`config.yaml`) maps quality name → OME stream name. This app shape silently ignores `Server.xml`'s declared `<Playlist>` Name/FileName (OME serves its own auto-generated filename instead, e.g. `playlist` not the configured `hls`) — testmerrie-api reads the actual served filename back from the running stream rather than trusting the config echo.
 
 ## Commands
 
@@ -78,11 +79,12 @@ Discord OAuth2 **authorization-code flow, exchanged server-side**. The old clien
 - **Quality is a global intent tier**, not a per-stream pick: `auto | best | balanced | saver` (persisted `qualityTier`). `resolveQualityTier(streams, tier)` maps intent → whatever rendition a given stream actually offers (adaptive `abr` special-cased; concrete renditions ordered by resolution parsed from the name; `full`/`source` = top). Stream cards are single-click; there is a Quality dropdown next to Protocol in the drawer.
 - **Sticky "ended" streams:** `reconcileSelection()` runs each poll — if the playing stream vanishes it's kept as `endedSelection` (shown greyed in the selector, playback stops) and auto-resumed with the same quality/protocol when it reappears.
 - **Stream/quality/protocol types are the source of truth in `BamApi.tsx`** (`StreamMap` → `StreamQualityMap` → `StreamProtocolUrlMap`; protocols `llhls`, `hls`, `webrtc-udp`, `webrtc-tcp`). Every playback URL is individually token-signed by the middleware. `StreamSpec` also carries source `video`/`audio` metadata (res, fps, codec, bitrate, channels, samplerate) used by the stats HUD.
+- **Idle/placeholder stream** (`availableStreams.idleStream`) is a `StreamSpec` like any other — `resolveIdleSelection(idleStream, qualityTier)` runs it through the same `resolveQualityTier` as real streams and picks whichever protocol the server listed first (server prefers `hls` over `llhls` when both exist, for lower idle-viewer request volume). Returns `null` when unconfigured or no tier exists yet; the 🚂 drawer checkbox is hidden entirely in that case.
 
 ### Player (`OvenPlayer.tsx`)
 React wrapper around the imperative OvenPlayer library — the most fragile part; preserve its workarounds and comments.
 - Props mirror OvenPlayer events as `on*` callbacks, held in refs so the player isn't re-created.
-- Source changes load a dummy `mp4` then the real source; WebRTC needs a manual `loading` transition. Idle/placeholder is seeked to a random offset.
+- Source changes load a dummy `mp4` then the real source; WebRTC needs a manual `loading` transition. Idle/placeholder (`startAtLiveEdge`) seeks to the live edge (`player.getDuration()`, the seekable range's end) once playing — since the source is genuinely live (OME schedule/DVR), that lands every viewer on the same real moment, looking arbitrary only because it depends on when they tuned in. (Previously seeked to `Date.now() % duration`, which never actually synced anyone: `getDuration()` on a live source is the DVR window size, not a fixed content length, so it drifts per client/per-poll.)
 - **Rebuild-on-source-change is now a React `key`** (`sourceKey` in `App`), not the old `rebuildOvenPlayer` state. `reloadNonce` triggers an in-place source reload for retries **without** unmounting the player (avoids a video blink) — driven by `usePlayerRetry` during OME's readiness window.
 - Exposes `onHlsPrepared` (hls.js object → bandwidth estimate) and `onPeerConnectionPrepared`/`onPeerConnectionDestroyed` (raw `RTCPeerConnection` → `getStats()`), consumed by the stats HUD.
 - Logout does a full `window.location.reload()` (the player dislikes being torn down).
@@ -106,7 +108,7 @@ Custom receiver app + custom message namespace `urn:x-cast:nl.testmerrie`. Hands
 
 ## Refactor status (for context)
 
-The phased modernization is **complete**: **Phase 1** server-side cookie auth · **Phase 2** ejected-CRA → Vite/TS5 · **Phase 3** React 18→19 + MUI 5→9 + notistack 2→3 (done 2026-08-19) · **Phase 4** App decomposed into hooks + StreamManager store · **Phase 5** player rebuild de-tangled (React key). Plus features: HLS protocol option, readiness retry + ErrorBoundary, sticky-ended streams, global quality tiers, stats HUD, nginx gzip, vendor-chunk split.
+The phased modernization is **complete**: **Phase 1** server-side cookie auth · **Phase 2** ejected-CRA → Vite/TS5 · **Phase 3** React 18→19 + MUI 5→9 + notistack 2→3 (done 2026-08-19) · **Phase 4** App decomposed into hooks + StreamManager store · **Phase 5** player rebuild de-tangled (React key). Plus features: HLS protocol option, readiness retry + ErrorBoundary, sticky-ended streams, global quality tiers, stats HUD, nginx gzip, vendor-chunk split, idle-loop quality tiers + HLS (lower idle request volume) + live-edge sync.
 
 **StrictMode is intentionally off.** It's dev-only (no prod effect); it was trialled during Phase 3 and caught a real auth-callback idempotency bug (now fixed in `BamApi`), but the imperative OvenPlayer wrapper doesn't survive its double-mount (create→destroy→create with preserved state → black video). Don't re-enable `<StrictMode>` without first making `OvenPlayer.tsx`'s destroy/recreate path survive a same-instance remount.
 

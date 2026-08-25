@@ -5,7 +5,7 @@ import OvenPlayerComponent, { OvenPlayerQualityLevel, OvenPlayerSource, OvenPlay
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { AvailableStreamUpdate, NO_SELECTION, QualityTier, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { AvailableStreamUpdate, NO_SELECTION, QualityTier, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import StatsHud, { BufferInfo } from './StatsHud';
@@ -84,7 +84,6 @@ type SourcesList = {
 const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAAAALSJfJMBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dTAAAAAAAAAAAAAATX2xMBAAAAMs4R1AEbT3B1c1RhZ3MLAAAAbGlib3B1cyAxLjQAAAAAT2dnUwAEOAEAAAAAAAAE19sTAgAAAH2fR5UBJ3AL5lPnqHt68t4P2sTcyxW/59HGZ5iOBdcPBxd7RYIrXeCvfBh0AA==");
 
 export default function App() {
-  const [idleStreamUrl, setIdleStreamUrl] = useState<string|undefined>();
   const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp", (v) => v as StreamProtocol);
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
@@ -110,22 +109,24 @@ export default function App() {
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
+  // Idle loop resolved through the same quality tier as real streams; null when
+  // no idle stream is configured server-side (or none of its qualities exist yet).
+  const idleSelection: StreamSelection = useMemo(
+    () => resolveIdleSelection(availableStreams.idleStream, qualityTier),
+    [availableStreams.idleStream, qualityTier]
+  );
+
   // What to hand Chromecast: the selected stream, the idle loop when nothing is
   // selected (and the placeholder is on), or nothing.
   const chromecastStream: StreamSelection = useMemo(() => {
     if (selectedStream !== null) {
       return selectedStream;
     }
-    if (idleStreamUrl === undefined || !usePlaceholderVideo) {
+    if (idleSelection === null || !usePlaceholderVideo) {
       return null;
     }
-    return {
-      key: "idle",
-      stream: { name: "idle", streams: { "default": { llhls: idleStreamUrl } } },
-      quality: "default",
-      protocol: "llhls",
-    };
-  }, [selectedStream, idleStreamUrl, usePlaceholderVideo]);
+    return idleSelection;
+  }, [selectedStream, idleSelection, usePlaceholderVideo]);
 
   const [logout, setLogout] = useState<() => void>();
 
@@ -159,20 +160,16 @@ export default function App() {
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
-  useEffect(() => {
-    setIdleStreamUrl(availableStreams.idleStream?.url);
-  }, [setIdleStreamUrl, availableStreams])
-
   // Sources to hand the player: the selected stream, the idle loop, or nothing.
   const sourcesList: SourcesList = useMemo(() => {
     if (selectedStream !== null) {
       return { sources: streamSelectionToOvenPlayerSourceList(selectedStream), isPlaceholder: false };
     }
-    if (idleStreamUrl === undefined || !usePlaceholderVideo) {
+    if (idleSelection === null || !usePlaceholderVideo) {
       return { sources: [], isPlaceholder: true };
     }
-    return { sources: [{ type: "llhls", file: idleStreamUrl }], isPlaceholder: true };
-  }, [selectedStream, idleStreamUrl, usePlaceholderVideo]);
+    return { sources: streamSelectionToOvenPlayerSourceList(idleSelection), isPlaceholder: true };
+  }, [selectedStream, idleSelection, usePlaceholderVideo]);
 
   // Key the player by its source so a source change remounts it — the workaround
   // for OvenPlayer issue #370 (it doesn't switch sources cleanly), done
@@ -274,7 +271,7 @@ export default function App() {
               volume={effectivelyMuted ? 0 : effectiveVolume}
               muted={effectivelyMuted}
               paused={ccConnected}
-              startAtRandomOffset={sourcesList.isPlaceholder}
+              startAtLiveEdge={sourcesList.isPlaceholder}
               reloadNonce={reloadNonce}
               onQualityLevelChanged={(event) => {liveQualityRef.current = event.currentQuality;}}
               onBufferChanged={(event) => {bufferRef.current = {buffer: event.buffer, position: event.position};}}
@@ -434,9 +431,9 @@ export default function App() {
                       </Select>
                     </FormControl>
                   </Stack>
-                  <FormControlLabel control={
+                  {availableStreams.idleStream ? <FormControlLabel control={
                     <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
-                  } label="🚂" />
+                  } label="🚂" /> : <></>}
                   <FormControlLabel control={
                     <Checkbox checked={useCrtFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseCrtFilter(checked);}} />
                   } label="📺" />

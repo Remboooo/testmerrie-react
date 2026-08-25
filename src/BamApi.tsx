@@ -98,13 +98,12 @@ export type StreamMap = {
     [key: string]: StreamSpec
 };
 
-export type IdleStreamSpec = {
-    "url": string,
-}
-
 export type StreamResponse = {
     streams: StreamMap,
-    idleStream?: IdleStreamSpec,
+    // Shaped exactly like a regular stream (one or more quality renditions) so it
+    // resolves through the same quality-tier machinery; absent when no idle loop
+    // is configured server-side.
+    idleStream?: StreamSpec,
 };
 
 export async function getStreams(): Promise<StreamResponse> {
