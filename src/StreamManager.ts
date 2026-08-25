@@ -61,6 +61,13 @@ function readQualityTier(): QualityTier {
     return (v === "auto" || v === "best" || v === "balanced" || v === "saver") ? v : DEFAULT_QUALITY_TIER;
 }
 
+// The user's persisted protocol preference (App mirrors it to localStorage under
+// "protocol"). Read fresh so autostart honours the current dropdown value.
+function readProtocolPreference(): StreamProtocol {
+    const v = localStorage.getItem("protocol");
+    return (v === "llhls" || v === "hls" || v === "webrtc-udp" || v === "webrtc-tcp") ? v : DEFAULT_PROTOCOL;
+}
+
 export class StreamManager {
     scheduledUpdate: NodeJS.Timeout|null = null;
     refreshTimestamp: number = 0;
@@ -124,7 +131,9 @@ export class StreamManager {
                 const [streamKey, streamDef] = streamEntries[0];
                 if (Object.keys(streamDef.streams).length) {
                     const quality = resolveQualityTier(streamDef.streams, this._qualityTier);
-                    this.selectedStream = {key: streamKey, stream: streamDef, protocol: DEFAULT_PROTOCOL, quality};
+                    const preferred = readProtocolPreference();
+                    const protocol = preferred in streamDef.streams[quality] ? preferred : DEFAULT_PROTOCOL;
+                    this.selectedStream = {key: streamKey, stream: streamDef, protocol, quality};
                     this.notify();
                 }
             }

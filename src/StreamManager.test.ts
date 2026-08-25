@@ -182,4 +182,18 @@ describe('autostart + availability', () => {
     sm.autoStart = true;
     expect(sm.getSelectedStream()).toMatchObject({ key: 'x/y', quality: '480p' });
   });
+
+  it('autoStart honours the persisted protocol preference when the quality offers it', () => {
+    localStorage.setItem('protocol', 'hls'); // 'full' offers hls
+    const sm = setup();
+    sm.autoStart = true;
+    expect(sm.getSelectedStream()).toMatchObject({ key: 'bam/rem', quality: 'full', protocol: 'hls' });
+  });
+
+  it('autoStart falls back to webrtc-udp when the preferred protocol is not offered for the quality', () => {
+    localStorage.setItem('protocol', 'webrtc-tcp'); // 'full' has no webrtc-tcp
+    const sm = setup();
+    sm.autoStart = true;
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'webrtc-udp' });
+  });
 });
