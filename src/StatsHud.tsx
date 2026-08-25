@@ -1,6 +1,6 @@
 import { MutableRefObject, ReactNode, useEffect, useRef, useState } from 'react';
 import { OvenPlayerQualityLevel, OvenPlayerState } from './OvenPlayer';
-import { QualityTier, StreamSelection } from './StreamManager';
+import { ADAPTIVE_QUALITY_NAMES, QualityTier, StreamSelection } from './StreamManager';
 import { formatBitrate } from './FormatUtil';
 import './StatsHud.css';
 
@@ -119,6 +119,11 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
     const renditionStr = (liveW && liveH)
         ? `${liveW}×${liveH}${liveBitrate ? ` · ${formatBitrate(liveBitrate)}` : ""}`
         : null;
+    // "Kwaliteit" resolved side: for an adaptive track ("abr"/"auto") the track
+    // name is uninformative, so show the live-measured height (e.g. "1080p")
+    // instead; concrete/named renditions (720p, full) keep their own label.
+    const isAdaptiveTrack = !!selection && ADAPTIVE_QUALITY_NAMES.includes(String(selection.quality));
+    const qualityResolved = (isAdaptiveTrack && liveH) ? `${liveH}p` : selection?.quality;
     // hls.js exposes a throughput estimate; WebRTC's (when present) rides on the
     // selected ICE candidate pair.
     const bandwidthEstimate = isWebrtc ? wrtc?.avail : bandwidth;
@@ -136,7 +141,7 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
                 <div className="stats-heading">Nu</div>
                 <Row label="Status" value={STATE_LABELS[playerState] ?? playerState} />
                 <Row label="Protocol" value={selection?.protocol} />
-                <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${selection?.quality ?? "—"}`} />
+                <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${qualityResolved ?? "—"}`} />
                 <Row label="Rendition" value={renditionStr} />
                 {liveFps != null && <Row label="FPS" value={Math.round(liveFps)} />}
                 {bufferSec != null && <Row label="Buffer" value={`${bufferSec.toFixed(1)} s`} />}

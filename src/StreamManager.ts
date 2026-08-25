@@ -32,7 +32,7 @@ export type SelectedStreamListener = (selection: StreamSelection) => void;
 
 // Quality rendition names are dynamic and owned by the backend; a tier expresses
 // the user's stable intent and resolves to whatever a given stream actually offers.
-const ADAPTIVE_QUALITY_NAMES = ["abr", "auto"];
+export const ADAPTIVE_QUALITY_NAMES = ["abr", "auto"];
 const SOURCE_QUALITY_NAMES = ["full", "source", "original"];
 
 function qualityRank(name: string): number {
