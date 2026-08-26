@@ -29,25 +29,26 @@ const EFFECT_CONFIG: {
 ];
 
 export type DisplaySettingsProps = {
+  // The effects master switch (a separate checkbox next to this button in
+  // the drawer) — when off, the gear can't be opened at all, mirroring how
+  // WebGL-only controls inside it are greyed out rather than hidden.
+  disabled: boolean;
   webglEnabled: boolean;
   onWebglEnabledChange: (v: boolean) => void;
   webglSupport: WebglSupport;
   effectiveRenderer: 'webgl' | 'svg';
   effects: Record<EffectKey, EffectState>;
   onEffectChange: (key: EffectKey, patch: Partial<EffectState>) => void;
-  statsHud: boolean;
-  onStatsHudChange: (v: boolean) => void;
 };
 
 export default function DisplaySettings({
+  disabled,
   webglEnabled,
   onWebglEnabledChange,
   webglSupport,
   effectiveRenderer,
   effects,
   onEffectChange,
-  statsHud,
-  onStatsHudChange,
 }: DisplaySettingsProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
@@ -60,7 +61,7 @@ export default function DisplaySettings({
 
   return (
     <>
-      <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Weergave-instellingen">
+      <IconButton disabled={disabled} onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Effectinstellingen">
         <Settings />
       </IconButton>
       <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
@@ -115,13 +116,6 @@ export default function DisplaySettings({
               </Box>
             );
           })}
-
-          <Divider sx={{ my: 1 }} />
-
-          <FormControlLabel
-            control={<Checkbox checked={statsHud} onChange={(_, checked) => onStatsHudChange(checked)} />}
-            label="📊 Statistieken"
-          />
         </Box>
       </Menu>
     </>

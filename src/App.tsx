@@ -99,6 +99,7 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
+  const [effectsEnabled, setEffectsEnabled] = usePersistedState<boolean>("effectsEnabled", true, (v) => v !== "false");
   const [useWebglEnabled, setUseWebglEnabled] = usePersistedState<boolean>("webglEnabled", true, (v) => v !== "false");
   const [chromaEnabled, setChromaEnabled] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
   const [chromaAmount, setChromaAmount] = usePersistedState<number>("chromaAmount", 40, (v) => parseInt(v));
@@ -294,8 +295,8 @@ export default function App() {
       >
         <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
           <div className={"mainVideoContainer"
-            + (effectiveRenderer === "webgl" ? " webglActive" : "")
-            + (effectiveRenderer === "svg" && chromaEnabled ? " chromaFilter" : "")}>
+            + (effectsEnabled && effectiveRenderer === "webgl" ? " webglActive" : "")
+            + (effectsEnabled && effectiveRenderer === "svg" && chromaEnabled ? " chromaFilter" : "")}>
             <OvenPlayerComponent
               key={sourceKey}
               onClicked={() => {}}
@@ -313,7 +314,7 @@ export default function App() {
               onPeerConnectionPrepared={(pc) => {pcRef.current = pc;}}
               onPeerConnectionDestroyed={() => {pcRef.current = null;}}
             />
-            {effectiveRenderer === "webgl" && (
+            {effectsEnabled && effectiveRenderer === "webgl" && (
               <EffectsCanvas
                 active={true}
                 playing={!["idle", "error", "paused"].includes(playerState)}
@@ -323,7 +324,7 @@ export default function App() {
                 onStatusChange={(status: EffectsCanvasStatus) => setContextLost(status === "context-lost")}
               />
             )}
-            {effectiveRenderer === "svg" && scanlinesEnabled && (
+            {effectsEnabled && effectiveRenderer === "svg" && scanlinesEnabled && (
               <div className="crtOverlay" style={{opacity: scanlinesAmount / 100}} />
             )}
           </div>
@@ -378,6 +379,7 @@ export default function App() {
               bufferRef={bufferRef}
               hlsRef={hlsRef}
               pcRef={pcRef}
+              effectsEnabled={effectsEnabled}
               webglEnabled={useWebglEnabled}
               webglSupport={webglSupport}
               effectiveRenderer={effectiveRenderer}
@@ -482,16 +484,21 @@ export default function App() {
                   {availableStreams.idleStream ? <FormControlLabel control={
                     <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
                   } label="🚂" /> : <></>}
+                  <FormControlLabel control={
+                    <Checkbox checked={effectsEnabled} onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}} />
+                  } label="🎛️" />
                   <DisplaySettings
+                    disabled={!effectsEnabled}
                     webglEnabled={useWebglEnabled}
                     onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
                     webglSupport={webglSupport}
                     effectiveRenderer={effectiveRenderer}
                     effects={effectsState}
                     onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
-                    statsHud={useStatsHud}
-                    onStatsHudChange={setUseStatsHud}
                   />
+                  <FormControlLabel control={
+                    <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
+                  } label="📊" />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => toggleFullscreen()}
