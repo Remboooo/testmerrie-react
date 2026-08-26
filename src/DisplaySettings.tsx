@@ -50,6 +50,10 @@ export type DisplaySettingsProps = {
   triggerAriaLabel?: string;
   anchorOrigin?: PopoverOrigin;
   transformOrigin?: PopoverOrigin;
+  // Fires whenever the popover opens/closes — lets a caller keep its trigger
+  // visible for the duration (the video-corner button shouldn't slide away
+  // on mouse-idle while its own popover is still open and being adjusted).
+  onOpenChange?: (open: boolean) => void;
 };
 
 export default function DisplaySettings({
@@ -65,6 +69,7 @@ export default function DisplaySettings({
   triggerAriaLabel,
   anchorOrigin,
   transformOrigin,
+  onOpenChange,
 }: DisplaySettingsProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
@@ -79,7 +84,7 @@ export default function DisplaySettings({
     <>
       <IconButton
         disabled={disabled}
-        onClick={(event) => setAnchorEl(event.currentTarget)}
+        onClick={(event) => {setAnchorEl(event.currentTarget); onOpenChange?.(true);}}
         aria-label={triggerAriaLabel ?? 'Effectinstellingen'}
         sx={triggerSx}
       >
@@ -88,7 +93,7 @@ export default function DisplaySettings({
       <Menu
         anchorEl={anchorEl}
         open={!!anchorEl}
-        onClose={() => setAnchorEl(null)}
+        onClose={() => {setAnchorEl(null); onOpenChange?.(false);}}
         anchorOrigin={anchorOrigin}
         transformOrigin={transformOrigin}
       >

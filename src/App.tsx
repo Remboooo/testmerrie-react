@@ -19,7 +19,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { AutoAwesome, Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -179,6 +179,12 @@ export default function App() {
 
   const mouseMovingTimeout = useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const [mouseVisibleOnVideo, setMouseVisibleOnVideo] = useState<boolean>(false);
+  // Keeps the video-corner effects button visible (and, crucially, its
+  // anchor position stable) for as long as its own popover is open, even
+  // once the mouse has gone idle over the popover itself rather than the
+  // video — otherwise the button (and the open popover anchored to it)
+  // would slide away mid-adjustment.
+  const [effectsPopoverOpen, setEffectsPopoverOpen] = useState<boolean>(false);
 
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
@@ -366,7 +372,7 @@ export default function App() {
             }}
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
           {effectsEnabled && (
-            <div className={"effects-quick-button" + (mouseVisibleOnVideo && !drawerOpen ? " mousing" : "")}>
+            <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
               <DisplaySettings
                 disabled={false}
                 webglEnabled={useWebglEnabled}
@@ -375,7 +381,8 @@ export default function App() {
                 effectiveRenderer={effectiveRenderer}
                 effects={effectsState}
                 onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
-                triggerIcon={<span style={{fontSize: '1.5rem', lineHeight: 1}}>✨</span>}
+                onOpenChange={setEffectsPopoverOpen}
+                triggerIcon={<AutoAwesome />}
                 triggerAriaLabel="Effecten aanpassen"
                 triggerSx={{
                   color: 'white',
