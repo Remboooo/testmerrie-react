@@ -467,7 +467,7 @@ export default function App() {
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
                 <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'center', gap: 1}}>
-                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center', bgcolor: DRAWER_CHIP_SX.bgcolor, borderRadius: DRAWER_CHIP_SX.borderRadius }}>
+                  <Stack spacing={2} direction="row" sx={{ px: 2, display: 'inline-flex', alignItems: 'center', bgcolor: DRAWER_CHIP_SX.bgcolor, borderRadius: DRAWER_CHIP_SX.borderRadius }}>
                     <Checkbox
                       onClick={() => {setMuted(!effectivelyMuted); setClickCount(clickCount+1);}}
                       checked={effectivelyMuted}
