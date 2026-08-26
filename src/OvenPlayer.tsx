@@ -69,7 +69,6 @@ export type OvenPlayerProps = {
     volume: number,
     muted: boolean,
     paused: boolean,
-    startAtLiveEdge: boolean,
     reloadNonce: number,
 };
 
@@ -109,7 +108,6 @@ export default function OvenPlayerComponent({
         volume = 100,
         muted = false,
         paused = false,
-        startAtLiveEdge = false,
         reloadNonce = 0,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
@@ -117,17 +115,13 @@ export default function OvenPlayerComponent({
     let playerRef = useRef<OvenPlayerInstance|undefined>(undefined);
     let volumeRef = useRef<number>(volume);
     let mutedRef = useRef<boolean>(muted);
-    let startAtLiveEdgeRef = useRef<boolean>(startAtLiveEdge);
     let onStateChangedRef = useRef(onStateChanged);
     let onQualityLevelChangedRef = useRef(onQualityLevelChanged);
 
     let [loadedSources, setLoadedSources] = useState<OvenPlayerSource[]>([]);
 
-    let seekedToLiveEdgeRef = useRef<boolean|undefined>(undefined);
-
     volumeRef.current = volume;
     mutedRef.current = muted;
-    startAtLiveEdgeRef.current = startAtLiveEdge;
     onStateChangedRef.current = onStateChanged;
     onQualityLevelChangedRef.current = onQualityLevelChanged;
 
@@ -137,28 +131,20 @@ export default function OvenPlayerComponent({
             playerRef.current.setMute(mutedRef.current);
         }
         const player = playerRef.current;
-        const startAtLiveEdge = startAtLiveEdgeRef.current;
         if (player && event.prevstate === "loading" && event.newstate === "playing") {
-            if ((!startAtLiveEdge) || (startAtLiveEdge && seekedToLiveEdgeRef.current)) {
-                if (containerElementRef.current) {
-                    containerElementRef.current.classList.remove("loading-content");
-                };
-            }
-
-            if (startAtLiveEdge && !seekedToLiveEdgeRef.current) {
-                seekedToLiveEdgeRef.current = true;
-                // Live source (OME Schedule/DVR window): every viewer sees the same
-                // real moment regardless of when they join, so seeking to the live
-                // edge is what actually lands everyone on the same (if arbitrary,
-                // since it depends on when you tuned in) spot. `getDuration()` here
-                // is the seekable range's end, not a fixed content length — it's
-                // NOT a stable per-file value, so `Date.now() % duration` (the
-                // previous approach) didn't sync anyone; it just picked a
-                // per-client, per-poll pseudo-random point in the DVR window.
-                let pos = player.getDuration();
-                console.log("Seek to live edge " + pos);
-                setTimeout(() => player.seek(pos));
-            }
+            // No explicit seek: hls.js already joins a live playlist near the live
+            // edge on its own (governed by liveSyncDurationCount), which is what
+            // actually lands every viewer on the same real moment for a genuinely
+            // live source (OME Schedule/DVR window) — arbitrary-looking only
+            // because it depends on when you tuned in. An explicit seek here used
+            // to double the startup wait (a second buffer-fill after the seek) for
+            // no sync benefit; a previous version also seeked to
+            // `Date.now() % player.getDuration()`, which never synced anyone since
+            // getDuration() on a live source is the DVR window size (drifts per
+            // client/poll), not a fixed content length.
+            if (containerElementRef.current) {
+                containerElementRef.current.classList.remove("loading-content");
+            };
         }
 
         onStateChangedRef.current(event);
@@ -259,7 +245,6 @@ export default function OvenPlayerComponent({
                 if (containerElementRef.current) {
                     containerElementRef.current.classList.add("loading-content");
                 };
-                seekedToLiveEdgeRef.current = false;
                 playerRef.current.load([{type: "mp4", file: ""}]);
                 // Clone: OvenPlayer mutates the source objects it's given in place
                 // (annotates type/label/default), which would otherwise corrupt our

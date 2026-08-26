@@ -282,7 +282,6 @@ export default function App() {
               volume={effectivelyMuted ? 0 : effectiveVolume}
               muted={effectivelyMuted}
               paused={ccConnected}
-              startAtLiveEdge={sourcesList.isPlaceholder}
               reloadNonce={reloadNonce}
               onQualityLevelChanged={(event) => {liveQualityRef.current = event.currentQuality;}}
               onBufferChanged={(event) => {bufferRef.current = {buffer: event.buffer, position: event.position};}}
