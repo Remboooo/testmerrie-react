@@ -2,6 +2,7 @@ import { MutableRefObject, ReactNode, useEffect, useRef, useState } from 'react'
 import { OvenPlayerQualityLevel, OvenPlayerState } from './OvenPlayer';
 import { ADAPTIVE_QUALITY_NAMES, QualityTier, StreamSelection } from './StreamManager';
 import { formatBitrate } from './FormatUtil';
+import { WebglSupport } from './webgl/useWebglSupport';
 import './StatsHud.css';
 
 const TIER_LABELS: Record<QualityTier, string> = {
@@ -31,7 +32,20 @@ export type StatsHudProps = {
     bufferRef: MutableRefObject<BufferInfo | null>;
     hlsRef: MutableRefObject<any>;
     pcRef: MutableRefObject<RTCPeerConnection | null>;
+    webglEnabled: boolean;
+    webglSupport: WebglSupport;
+    effectiveRenderer: 'webgl' | 'svg';
 };
+
+// Why the renderer ended up where it did, not just what it is — useful for
+// spotting "user wanted WebGL but it silently fell back" at a glance.
+function rendererLabel(webglEnabled: boolean, webglSupport: WebglSupport, effectiveRenderer: 'webgl' | 'svg'): string {
+    if (effectiveRenderer === 'webgl') return 'WebGL';
+    if (!webglEnabled) return 'SVG (uitgeschakeld)';
+    if (webglSupport === 'unavailable') return 'SVG (WebGL niet ondersteund)';
+    if (webglSupport === 'checking') return 'SVG (WebGL wordt gecontroleerd…)';
+    return 'SVG (WebGL-context verloren)';
+}
 
 type WebrtcLive = { width?: number; height?: number; bitrate?: number; fps?: number; avail?: number };
 
@@ -48,7 +62,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 // stream metadata; the live column ("Nu") reflects what the player is actually
 // doing. The live numbers are held in refs and polled here at 1 Hz so frequent
 // buffer/bandwidth updates don't re-render the whole App.
-export default function StatsHud({ playerState, selection, qualityTier, liveQualityRef, bufferRef, hlsRef, pcRef }: StatsHudProps) {
+export default function StatsHud({ playerState, selection, qualityTier, liveQualityRef, bufferRef, hlsRef, pcRef, webglEnabled, webglSupport, effectiveRenderer }: StatsHudProps) {
     const [, setTick] = useState(0);
     const webrtcLiveRef = useRef<WebrtcLive | null>(null);
     const prevRef = useRef<{ bytes: number; ts: number; bitrate?: number } | null>(null);
@@ -140,6 +154,7 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
             <div className="stats-col">
                 <div className="stats-heading">Nu</div>
                 <Row label="Status" value={STATE_LABELS[playerState] ?? playerState} />
+                <Row label="Weergave" value={rendererLabel(webglEnabled, webglSupport, effectiveRenderer)} />
                 <Row label="Protocol" value={selection?.protocol} />
                 <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${qualityResolved ?? "—"}`} />
                 <Row label="Rendition" value={renditionStr} />

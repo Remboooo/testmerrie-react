@@ -230,6 +230,23 @@ div.stream-selector-and-selection-options {
   }
 }
 
+.placeholder-video .effects-canvas {
+  object-fit: cover;
+}
+
+.effects-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  object-fit: contain;
+}
+
+.mainVideoContainer.webglActive .ovenplayer video {
+  visibility: hidden;
+}
+
 .mainVideoContainer {
   margin: 0;
   padding: 0;
@@ -237,11 +254,7 @@ div.stream-selector-and-selection-options {
   height: 100%;
 }
 
-.mainVideoContainer.crtFilter .player-container {
-  filter: url(#glow)/* url(#crt-sphere)*/;
-}
-
-.crtFilter .crtOverlay {
+.crtOverlay {
   pointer-events: none;
   overflow: hidden;
   position: fixed;
@@ -257,8 +270,4 @@ div.stream-selector-and-selection-options {
 
 .mainVideoContainer.chromaFilter .player-container {
   filter: url(#chromatic-aberration);
-}
-
-.mainVideoContainer.crtFilter.chromaFilter .player-container {
-  filter: url(#chromatic-aberration) url(#glow);
 }

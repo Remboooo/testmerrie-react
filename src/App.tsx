@@ -10,6 +10,9 @@ import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import StatsHud, { BufferInfo } from './StatsHud';
 import { useStreamManager } from './useStreamManager';
+import EffectsCanvas, { EffectsCanvasStatus } from './EffectsCanvas';
+import DisplaySettings, { EffectKey, EffectState } from './DisplaySettings';
+import { useWebglSupport } from './webgl/useWebglSupport';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
 import FormGroup from '@mui/material/FormGroup';
@@ -96,9 +99,38 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
-  const [useCrtFilter, setUseCrtFilter] = usePersistedState<boolean>("crtFilter", false, (v) => v === "true");
-  const [useChromaFilter, setUseChromaFilter] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
+  const [useWebglEnabled, setUseWebglEnabled] = usePersistedState<boolean>("webglEnabled", true, (v) => v !== "false");
+  const [chromaEnabled, setChromaEnabled] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
+  const [chromaAmount, setChromaAmount] = usePersistedState<number>("chromaAmount", 40, (v) => parseInt(v));
+  const [scanlinesEnabled, setScanlinesEnabled] = usePersistedState<boolean>("scanlinesFilter", false, (v) => v === "true");
+  const [scanlinesAmount, setScanlinesAmount] = usePersistedState<number>("scanlinesAmount", 50, (v) => parseInt(v));
+  const [grainEnabled, setGrainEnabled] = usePersistedState<boolean>("grainFilter", false, (v) => v === "true");
+  const [grainAmount, setGrainAmount] = usePersistedState<number>("grainAmount", 15, (v) => parseInt(v));
+  const [bulgeEnabled, setBulgeEnabled] = usePersistedState<boolean>("crtBulgeFilter", false, (v) => v === "true");
+  const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", 30, (v) => parseInt(v));
   const [useStatsHud, setUseStatsHud] = usePersistedState<boolean>("statsHud", false, (v) => v === "true");
+
+  const webglSupport = useWebglSupport();
+  const [contextLost, setContextLost] = useState<boolean>(false);
+  const effectiveRenderer: 'webgl' | 'svg' = (useWebglEnabled && webglSupport === 'available' && !contextLost) ? 'webgl' : 'svg';
+
+  const effectsState: Record<EffectKey, EffectState> = {
+    chroma: { enabled: chromaEnabled, amount: chromaAmount },
+    scanlines: { enabled: scanlinesEnabled, amount: scanlinesAmount },
+    grain: { enabled: grainEnabled, amount: grainAmount },
+    bulge: { enabled: bulgeEnabled, amount: bulgeAmount },
+  };
+  const EFFECT_SETTERS: Record<EffectKey, { setEnabled: (v: boolean) => void, setAmount: (v: number) => void }> = {
+    chroma: { setEnabled: setChromaEnabled, setAmount: setChromaAmount },
+    scanlines: { setEnabled: setScanlinesEnabled, setAmount: setScanlinesAmount },
+    grain: { setEnabled: setGrainEnabled, setAmount: setGrainAmount },
+    bulge: { setEnabled: setBulgeEnabled, setAmount: setBulgeAmount },
+  };
+  const handleEffectChange = (key: EffectKey, patch: Partial<EffectState>) => {
+    const { setEnabled, setAmount } = EFFECT_SETTERS[key];
+    if (patch.enabled !== undefined) setEnabled(patch.enabled);
+    if (patch.amount !== undefined) setAmount(patch.amount);
+  };
   // Live player telemetry for the stats HUD, held in refs so the frequent
   // buffer/quality updates don't re-render App; the HUD polls them at 1 Hz.
   const liveQualityRef = useRef<OvenPlayerQualityLevel | null>(null);
@@ -261,7 +293,9 @@ export default function App() {
         setLogout={(logout) => setLogout(() => logout)}
       >
         <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
-          <div className={"mainVideoContainer" + (useCrtFilter ? " crtFilter" : "") + (useChromaFilter ? " chromaFilter" : "")}>
+          <div className={"mainVideoContainer"
+            + (effectiveRenderer === "webgl" ? " webglActive" : "")
+            + (effectiveRenderer === "svg" && chromaEnabled ? " chromaFilter" : "")}>
             <OvenPlayerComponent
               key={sourceKey}
               onClicked={() => {}}
@@ -279,7 +313,18 @@ export default function App() {
               onPeerConnectionPrepared={(pc) => {pcRef.current = pc;}}
               onPeerConnectionDestroyed={() => {pcRef.current = null;}}
             />
-            <div className="crtOverlay" />
+            {effectiveRenderer === "webgl" && (
+              <EffectsCanvas
+                active={true}
+                playing={!["idle", "error", "paused"].includes(playerState)}
+                effects={{chroma: chromaEnabled, scanlines: scanlinesEnabled, grain: grainEnabled, bulge: bulgeEnabled}}
+                amounts={{chroma: chromaAmount, scanlines: scanlinesAmount, grain: grainAmount, bulge: bulgeAmount}}
+                onStatusChange={(status: EffectsCanvasStatus) => setContextLost(status === "context-lost")}
+              />
+            )}
+            {effectiveRenderer === "svg" && scanlinesEnabled && (
+              <div className="crtOverlay" style={{opacity: scanlinesAmount / 100}} />
+            )}
           </div>
           <div 
             className={"invisible-click-catcher" + (mouseVisibleOnVideo ? " mousing" : "")}
@@ -332,6 +377,9 @@ export default function App() {
               bufferRef={bufferRef}
               hlsRef={hlsRef}
               pcRef={pcRef}
+              webglEnabled={useWebglEnabled}
+              webglSupport={webglSupport}
+              effectiveRenderer={effectiveRenderer}
             />
           )}
           <Drawer
@@ -433,15 +481,16 @@ export default function App() {
                   {availableStreams.idleStream ? <FormControlLabel control={
                     <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
                   } label="🚂" /> : <></>}
-                  <FormControlLabel control={
-                    <Checkbox checked={useCrtFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseCrtFilter(checked);}} />
-                  } label="📺" />
-                  <FormControlLabel control={
-                    <Checkbox checked={useChromaFilter} onChange={(event, checked) => {setClickCount(clickCount+1); setUseChromaFilter(checked);}} />
-                  } label="🎨" />
-                  <FormControlLabel control={
-                    <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
-                  } label="📊" />
+                  <DisplaySettings
+                    webglEnabled={useWebglEnabled}
+                    onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
+                    webglSupport={webglSupport}
+                    effectiveRenderer={effectiveRenderer}
+                    effects={effectsState}
+                    onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
+                    statsHud={useStatsHud}
+                    onStatsHudChange={setUseStatsHud}
+                  />
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => toggleFullscreen()}
