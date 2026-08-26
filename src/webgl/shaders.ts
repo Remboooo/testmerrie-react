@@ -66,14 +66,36 @@ void main() {
   // blur stays the same size relative to the frame regardless of pass 1's
   // actual resolution (which varies with source/viewport size) or the
   // viewport size itself.
+  // 5-tap binomial blur (1,4,6,4,1)/16 along dir, wider and stronger than
+  // a plain 3-tap so it reads as a soft blur rather than a faint double-edge.
   vec2 dir = uv - 0.5;
   float off = u_chromaAmount * 0.02;
-  float blur = off * 0.5;
+  float blur = off * 1.5;
   vec2 rUv = uv + dir * off;
   vec2 bUv = uv - dir * off;
-  float r = (texture2D(u_texture, rUv - dir * blur).r + texture2D(u_texture, rUv).r * 2.0 + texture2D(u_texture, rUv + dir * blur).r) * 0.25;
-  float g = (texture2D(u_texture, uv - dir * blur * 0.25).g + texture2D(u_texture, uv).g * 2.0 + texture2D(u_texture, uv + dir * blur * 0.25).g) * 0.25;
-  float b = (texture2D(u_texture, bUv - dir * blur).b + texture2D(u_texture, bUv).b * 2.0 + texture2D(u_texture, bUv + dir * blur).b) * 0.25;
+  vec2 gBlurDir = dir * blur * 0.25;
+  vec2 rBlurDir = dir * blur;
+  float r = (
+    texture2D(u_texture, rUv - rBlurDir * 2.0).r +
+    texture2D(u_texture, rUv - rBlurDir).r * 4.0 +
+    texture2D(u_texture, rUv).r * 6.0 +
+    texture2D(u_texture, rUv + rBlurDir).r * 4.0 +
+    texture2D(u_texture, rUv + rBlurDir * 2.0).r
+  ) / 16.0;
+  float g = (
+    texture2D(u_texture, uv - gBlurDir * 2.0).g +
+    texture2D(u_texture, uv - gBlurDir).g * 4.0 +
+    texture2D(u_texture, uv).g * 6.0 +
+    texture2D(u_texture, uv + gBlurDir).g * 4.0 +
+    texture2D(u_texture, uv + gBlurDir * 2.0).g
+  ) / 16.0;
+  float b = (
+    texture2D(u_texture, bUv - rBlurDir * 2.0).b +
+    texture2D(u_texture, bUv - rBlurDir).b * 4.0 +
+    texture2D(u_texture, bUv).b * 6.0 +
+    texture2D(u_texture, bUv + rBlurDir).b * 4.0 +
+    texture2D(u_texture, bUv + rBlurDir * 2.0).b
+  ) / 16.0;
   vec3 color = vec3(r, g, b);
 #else
   vec3 color = texture2D(u_texture, uv).rgb;

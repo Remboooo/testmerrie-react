@@ -25,7 +25,7 @@ describe('buildPass1FragmentShader', () => {
 
   test('chroma blurs each channel, with a fraction of the radial shift rather than a fixed/texel-based radius', () => {
     const src = buildPass1FragmentShader({ chroma: true, bulge: false });
-    expect(src).toContain('blur = off * 0.5');
+    expect(src).toContain('blur = off * 1.5');
     // No resolution or texel-size term anywhere in pass 1 -- the blur (like
     // the shift) is a plain fraction of uv space, so it stays the same size
     // relative to the frame no matter what resolution pass 1 itself renders
