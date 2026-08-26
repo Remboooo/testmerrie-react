@@ -37,6 +37,24 @@ describe('buildFragmentShader', () => {
     const src = buildFragmentShader({ chroma: false, grain: false, bulge: true, scanlines: false });
     expect(src).toContain('maxWarp = 1.0 + 0.5 * (u_bulgeAmount * 0.6)');
   });
+
+  test('enables the derivatives extension (guarding the fwidth-based scanline path) only when capable', () => {
+    // Both branches of the shader's own #ifdef HAS_DERIVATIVES exist in the
+    // source text either way — it's the GLSL preprocessor, not this
+    // function, that picks one — so what this function controls is only
+    // whether HAS_DERIVATIVES (and the extension pragma it depends on)
+    // get defined at all.
+    const withDerivatives = buildFragmentShader({ ...NONE, scanlines: true }, { derivatives: true });
+    expect(withDerivatives).toContain('#extension GL_OES_standard_derivatives : enable');
+    expect(withDerivatives).toContain('#define HAS_DERIVATIVES');
+
+    const without = buildFragmentShader({ ...NONE, scanlines: true }, { derivatives: false });
+    expect(without).not.toContain('#extension');
+    expect(without).not.toContain('#define HAS_DERIVATIVES');
+
+    const defaulted = buildFragmentShader({ ...NONE, scanlines: true });
+    expect(defaulted).not.toContain('#extension');
+  });
 });
 
 describe('effectFlagsKey', () => {

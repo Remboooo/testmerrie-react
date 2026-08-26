@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { buildFragmentShader, effectFlagsKey, ShaderEffectFlags, VERTEX_SHADER_SOURCE } from './webgl/shaders';
+import { buildFragmentShader, effectFlagsKey, ShaderCapabilities, ShaderEffectFlags, VERTEX_SHADER_SOURCE } from './webgl/shaders';
 
 export type EffectAmounts = {
   chroma: number;
@@ -36,9 +36,9 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string):
   return shader;
 }
 
-function linkProgram(gl: WebGLRenderingContext, flags: ShaderEffectFlags): WebGLProgram {
+function linkProgram(gl: WebGLRenderingContext, flags: ShaderEffectFlags, caps: ShaderCapabilities): WebGLProgram {
   const vertexShader = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, buildFragmentShader(flags));
+  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, buildFragmentShader(flags, caps));
   const program = gl.createProgram();
   if (!program) throw new Error('createProgram failed');
   gl.attachShader(program, vertexShader);
@@ -65,6 +65,7 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
   const rafRef = useRef<number | null>(null);
   const lostRef = useRef<boolean>(false);
   const startTimeRef = useRef<number>(performance.now());
+  const capsRef = useRef<ShaderCapabilities>({ derivatives: false });
 
   const effectsRef = useRef(effects);
   effectsRef.current = effects;
@@ -87,6 +88,9 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
     }
     glRef.current = gl;
     lostRef.current = false;
+    // Universally supported in practice, but gated on an explicit check
+    // rather than assumed — used to band-limit the scanline pattern.
+    capsRef.current = { derivatives: !!gl.getExtension('OES_standard_derivatives') };
 
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -155,18 +159,29 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       const key = effectFlagsKey(flags);
       let program = programCacheRef.current.get(key);
       if (!program) {
-        program = linkProgram(gl, flags);
+        program = linkProgram(gl, flags, capsRef.current);
         programCacheRef.current.set(key, program);
       }
       currentProgramRef.current = program;
 
-      // The canvas's *backing store* is sized to the video's native
-      // resolution, not its CSS box — that's what gives it an intrinsic
-      // aspect ratio for the "object-fit: contain/cover" CSS to actually act
-      // on (a replaced element with no size mismatch has nothing to fit),
-      // exactly like the <video> element it's standing in for.
-      const targetWidth = video.videoWidth || canvas.clientWidth;
-      const targetHeight = video.videoHeight || canvas.clientHeight;
+      // The canvas's *backing store* keeps the video's native aspect ratio
+      // (not its CSS box's) — that's what gives it an intrinsic aspect ratio
+      // for the "object-fit: contain/cover" CSS to actually act on (a
+      // replaced element with no size mismatch has nothing to fit), exactly
+      // like the <video> element it's standing in for. But its *resolution*
+      // is bumped up to at least the display size when the video's native
+      // resolution is lower (e.g. a 720p rendition shown fullscreen on a
+      // 1440p+ display) — otherwise the scanline/grain patterns are computed
+      // at too few texels and alias badly once the browser's object-fit
+      // upscales the canvas to fill a much larger box.
+      const dpr = window.devicePixelRatio || 1;
+      const displayWidth = canvas.clientWidth * dpr;
+      const displayHeight = canvas.clientHeight * dpr;
+      const nativeWidth = video.videoWidth || displayWidth;
+      const nativeHeight = video.videoHeight || displayHeight;
+      const upscale = Math.max(1, displayWidth / nativeWidth, displayHeight / nativeHeight);
+      const targetWidth = Math.round(nativeWidth * upscale);
+      const targetHeight = Math.round(nativeHeight * upscale);
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
         canvas.width = targetWidth;
         canvas.height = targetHeight;

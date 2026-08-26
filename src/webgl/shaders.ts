@@ -85,9 +85,22 @@ void main() {
   // Mirrors the SVG fallback's CSS gradient: a thin dark band every 4
   // logical pixels that fades out within ~30% of the band, not a full-cycle
   // sine wash — reads as fine scanlines rather than fat stripes.
-  float cell = mod(uv.y * u_resolution.y, 4.0) / 4.0;
+  float y = uv.y * u_resolution.y;
+  float cell = mod(y, 4.0) / 4.0;
   float distToLine = min(cell, 1.0 - cell);
+#ifdef HAS_DERIVATIVES
+  // Band-limit the edge against the pattern's actual on-screen footprint
+  // (fwidth), so it fades toward flat instead of aliasing wherever a pixel
+  // covers more than a sliver of a period — chiefly near the bulge warp,
+  // where neighbouring fragments' uv.y can diverge sharply. This also
+  // restores the soft edge the SVG version got for free from its
+  // feGaussianBlur, and scales it to how much softening is actually needed
+  // instead of a fixed amount.
+  float aa = max(fwidth(y) / 4.0, 0.001);
+  float darkness = (1.0 - smoothstep(0.3 - aa, 0.3 + aa, distToLine)) * 0.25;
+#else
   float darkness = clamp(1.0 - distToLine / 0.3, 0.0, 1.0) * 0.25;
+#endif
   color *= 1.0 - darkness * (u_scanlineAmount * 2.0);
 #endif
 
@@ -104,16 +117,25 @@ void main() {
 }
 `;
 
+export type ShaderCapabilities = {
+  // Whether fwidth()/dFdx()/dFdy() (OES_standard_derivatives) are available —
+  // used to band-limit the scanline pattern against aliasing. Universally
+  // supported in practice, but gated on an explicit JS-side extension check
+  // rather than assumed.
+  derivatives: boolean;
+};
+
 // Compiles only the enabled effects into the shader (as #defines guarding
 // #ifdef blocks) so a disabled effect costs nothing at runtime, and so a
 // distinct combination of enabled effects gets its own program the caller can
 // cache and reuse.
-export function buildFragmentShader(flags: ShaderEffectFlags): string {
+export function buildFragmentShader(flags: ShaderEffectFlags, caps: ShaderCapabilities = { derivatives: false }): string {
+  const extension = caps.derivatives ? '#extension GL_OES_standard_derivatives : enable\n#define HAS_DERIVATIVES\n' : '';
   const defines = EFFECT_DEFINES
     .filter(({ key }) => flags[key])
     .map(({ define }) => `#define ${define}`)
     .join("\n");
-  return `${defines}\n${FRAGMENT_SHADER_BODY}`;
+  return `${extension}${defines}\n${FRAGMENT_SHADER_BODY}`;
 }
 
 // Stable cache key for a set of enabled effects, e.g. "bulge,chroma".
