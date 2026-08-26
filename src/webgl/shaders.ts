@@ -57,13 +57,24 @@ void main() {
 #endif
 
 #ifdef EFFECT_CHROMA
+  // Shift + a soft per-channel blur along the same radial axis, mirroring
+  // the SVG version's per-channel feGaussianBlur (green blurred far less
+  // than the shifted red/blue channels there too) — a bare offset alone
+  // reads as a hard double-image rather than an optical aberration.
+  // Both are plain fractions of uv space (no resolution/texel-size term
+  // anywhere here — pass 1 doesn't even have a resolution uniform), so the
+  // blur stays the same size relative to the frame regardless of pass 1's
+  // actual resolution (which varies with source/viewport size) or the
+  // viewport size itself.
   vec2 dir = uv - 0.5;
   float off = u_chromaAmount * 0.02;
-  vec3 color = vec3(
-    texture2D(u_texture, uv + dir * off).r,
-    texture2D(u_texture, uv).g,
-    texture2D(u_texture, uv - dir * off).b
-  );
+  float blur = off * 0.5;
+  vec2 rUv = uv + dir * off;
+  vec2 bUv = uv - dir * off;
+  float r = (texture2D(u_texture, rUv - dir * blur).r + texture2D(u_texture, rUv).r * 2.0 + texture2D(u_texture, rUv + dir * blur).r) * 0.25;
+  float g = (texture2D(u_texture, uv - dir * blur * 0.25).g + texture2D(u_texture, uv).g * 2.0 + texture2D(u_texture, uv + dir * blur * 0.25).g) * 0.25;
+  float b = (texture2D(u_texture, bUv - dir * blur).b + texture2D(u_texture, bUv).b * 2.0 + texture2D(u_texture, bUv + dir * blur).b) * 0.25;
+  vec3 color = vec3(r, g, b);
 #else
   vec3 color = texture2D(u_texture, uv).rgb;
 #endif

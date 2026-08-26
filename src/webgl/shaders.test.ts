@@ -22,6 +22,16 @@ describe('buildPass1FragmentShader', () => {
     const src = buildPass1FragmentShader({ chroma: true, bulge: true });
     expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_CHROMA'));
   });
+
+  test('chroma blurs each channel, with a fraction of the radial shift rather than a fixed/texel-based radius', () => {
+    const src = buildPass1FragmentShader({ chroma: true, bulge: false });
+    expect(src).toContain('blur = off * 0.5');
+    // No resolution or texel-size term anywhere in pass 1 -- the blur (like
+    // the shift) is a plain fraction of uv space, so it stays the same size
+    // relative to the frame no matter what resolution pass 1 itself renders
+    // at (which varies with source/viewport size) or how big the viewport is.
+    expect(src).not.toContain('u_resolution');
+  });
 });
 
 describe('pass1Key', () => {
