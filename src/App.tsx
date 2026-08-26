@@ -68,6 +68,14 @@ const HLS_RESILIENT_CONFIG = {
   levelLoadingMaxRetry: 6,
 };
 
+// The idle loop wants the opposite trade-off from a real HLS stream: nobody's
+// relying on it not to stall, so hold back only ~1 segment instead of hls.js's
+// default 3 to start playback sooner (segments are 5s, so this is the
+// difference between joining after ~5s vs ~15s).
+const HLS_IDLE_CONFIG = {
+  liveSyncDurationCount: 1,
+};
+
 function streamSelectionToOvenPlayerSourceList(selection: StreamSelection): OvenPlayerSource[] {
   return selection === null ? [] : [{
     type: PROTOCOL_TO_OVENPLAYER_TYPE[selection.protocol],
@@ -267,7 +275,10 @@ export default function App() {
               onClicked={() => {}}
               onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
               sources={sourcesList.sources}
-              playerOptions={{autoStart: true, controls: false, loop: true, hlsConfig: selectedStream?.protocol === "hls" ? HLS_RESILIENT_CONFIG : undefined}}
+              playerOptions={{autoStart: true, controls: false, loop: true, hlsConfig:
+                selectedStream?.protocol === "hls" ? HLS_RESILIENT_CONFIG :
+                (sourcesList.isPlaceholder && idleSelection?.protocol === "hls") ? HLS_IDLE_CONFIG :
+                undefined}}
               volume={effectivelyMuted ? 0 : effectiveVolume}
               muted={effectivelyMuted}
               paused={ccConnected}
