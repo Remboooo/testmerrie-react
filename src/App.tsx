@@ -61,6 +61,18 @@ const DRAWER_CHIP_SX = {
   px: 1,
 };
 
+// Same pill shape as DRAWER_CHIP_SX, but a plain low-opacity white instead of
+// the theme's action.hover — the drawer chips sit on its own opaque dark
+// panel, but this one sits directly over arbitrary video content, where a
+// theme-relative tint wouldn't read consistently.
+const VIDEO_OVERLAY_CHIP_SX = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  bgcolor: 'rgba(255, 255, 255, 0.08)',
+  borderRadius: '999px',
+  px: 1,
+};
+
 const QUALITY_OPTIONS: {value: QualityTier, label: string, description: string}[] = [
   {value: "auto", label: "Auto", description: "Past zich automatisch aan je verbinding aan (adaptief)"},
   {value: "best", label: "Beste", description: "Hoogste resolutie die de stream biedt"},
@@ -371,10 +383,15 @@ export default function App() {
               }
             }}
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
-          {effectsEnabled && (
-            <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
+          <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
+            <Box sx={VIDEO_OVERLAY_CHIP_SX}>
+              <Checkbox
+                checked={effectsEnabled}
+                onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}}
+                sx={{color: 'white', '&.Mui-checked': {color: 'white'}}}
+              />
               <DisplaySettings
-                disabled={false}
+                disabled={!effectsEnabled}
                 webglEnabled={useWebglEnabled}
                 onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
                 webglSupport={webglSupport}
@@ -393,8 +410,8 @@ export default function App() {
                 anchorOrigin={{vertical: 'top', horizontal: 'right'}}
                 transformOrigin={{vertical: 'bottom', horizontal: 'right'}}
               />
-            </div>
-          )}
+            </Box>
+          </div>
           <div
             className="cast-overlay"
           >
