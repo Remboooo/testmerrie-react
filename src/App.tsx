@@ -317,6 +317,7 @@ export default function App() {
               <EffectsCanvas
                 active={true}
                 playing={!["idle", "error", "paused"].includes(playerState)}
+                cover={sourcesList.isPlaceholder}
                 effects={{chroma: chromaEnabled, scanlines: scanlinesEnabled, grain: grainEnabled, bulge: bulgeEnabled}}
                 amounts={{chroma: chromaAmount, scanlines: scanlinesAmount, grain: grainAmount, bulge: bulgeAmount}}
                 onStatusChange={(status: EffectsCanvasStatus) => setContextLost(status === "context-lost")}

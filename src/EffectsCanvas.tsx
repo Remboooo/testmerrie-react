@@ -26,6 +26,11 @@ export type EffectsCanvasProps = {
   // loop pauses otherwise (idle/paused/error state, or an idle-loop tab in
   // the background) so a static or absent frame doesn't burn GPU/CPU forever.
   playing: boolean;
+  // Mirrors the CSS: object-fit: cover for the idle/placeholder stream,
+  // contain for a real one (App.css's .placeholder-video .effects-canvas
+  // rule) — needed so the render-target sizing math below matches whichever
+  // fit is actually in effect, not just guesses "cover".
+  cover: boolean;
   effects: ShaderEffectFlags;
   amounts: EffectAmounts;
   onStatusChange: (status: EffectsCanvasStatus) => void;
@@ -93,7 +98,7 @@ function createRenderTexture(gl: WebGLRenderingContext): WebGLTexture {
 //   the video texture, so it only looks right computed at full display
 //   resolution — otherwise it's undersampled relative to what it's stretched
 //   to and aliases.
-export default function EffectsCanvas({ active, playing, effects, amounts, onStatusChange }: EffectsCanvasProps) {
+export default function EffectsCanvas({ active, playing, cover, effects, amounts, onStatusChange }: EffectsCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
   const videoTextureRef = useRef<WebGLTexture | null>(null);
@@ -107,11 +112,14 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
   const lostRef = useRef<boolean>(false);
   const startTimeRef = useRef<number>(performance.now());
   const capsRef = useRef<ShaderCapabilities>({ derivatives: false });
+  const maxTextureSizeRef = useRef<number>(4096);
 
   const effectsRef = useRef(effects);
   effectsRef.current = effects;
   const amountsRef = useRef(amounts);
   amountsRef.current = amounts;
+  const coverRef = useRef(cover);
+  coverRef.current = cover;
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
 
@@ -132,6 +140,7 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
     // Universally supported in practice, but gated on an explicit check
     // rather than assumed — used to band-limit the scanline pattern.
     capsRef.current = { derivatives: !!gl.getExtension('OES_standard_derivatives') };
+    maxTextureSizeRef.current = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
 
     const videoTexture = createRenderTexture(gl);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -214,25 +223,40 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       // The canvas's *backing store* keeps the video's native aspect ratio
       // (not its CSS box's) — that's what gives it an intrinsic aspect ratio
       // for the "object-fit: contain/cover" CSS to actually act on, exactly
-      // like the <video> element it's standing in for. Its *resolution* is
-      // bumped to at least the display size when the source is lower-res, so
-      // pass 2's procedural effects aren't undersampled relative to what
-      // they're displayed at. Pass 1 gets the opposite treatment — capped at
-      // whichever is *smaller* of native or display resolution, since its
-      // work (the warp + chroma sampling) is fundamentally limited by the
-      // source video's own detail and gains nothing from extra fragments,
-      // whether that ceiling comes from the source or from a small viewport.
+      // like the <video> element it's standing in for.
+      //
+      // Its *resolution* targets the size the video is actually rendered at
+      // on screen once that CSS fit is applied — which, unless the box
+      // happens to share the video's exact aspect ratio, is *not* the full
+      // client box in both dimensions. "contain" (the normal case) picks the
+      // *smaller* of the two axis ratios and letterboxes/pillarboxes the
+      // other; "cover" (the idle/placeholder stream) picks the *larger* and
+      // crops. Using the box size directly (or always taking the larger
+      // ratio) overshoots by however extreme the letterbox is — e.g. a
+      // 1080p stream contained in a 32:9 ultrawide viewport only ever
+      // occupies a ~1920-wide strip of it, not the full box width — and that
+      // overshoot has actually hit real GPU/canvas size ceilings on wide
+      // enough viewports, silently clamping the drawing buffer to something
+      // *smaller* than intended and reading as pixelation. Pass 1 is then
+      // additionally capped at native resolution, since its work (the warp +
+      // chroma sampling) is fundamentally limited by the source video's own
+      // detail and gains nothing from more fragments than that.
       const dpr = window.devicePixelRatio || 1;
       const displayWidth = canvas.clientWidth * dpr;
       const displayHeight = canvas.clientHeight * dpr;
       const nativeWidth = video.videoWidth || displayWidth;
       const nativeHeight = video.videoHeight || displayHeight;
-      const pass2Scale = Math.max(1, displayWidth / nativeWidth, displayHeight / nativeHeight);
-      const pass1Scale = Math.min(1, displayWidth / nativeWidth, displayHeight / nativeHeight);
-      const pass2Width = Math.round(nativeWidth * pass2Scale);
-      const pass2Height = Math.round(nativeHeight * pass2Scale);
-      const pass1Width = Math.max(1, Math.round(nativeWidth * pass1Scale));
-      const pass1Height = Math.max(1, Math.round(nativeHeight * pass1Scale));
+      const widthRatio = displayWidth / nativeWidth;
+      const heightRatio = displayHeight / nativeHeight;
+      const fitScale = coverRef.current ? Math.max(widthRatio, heightRatio) : Math.min(widthRatio, heightRatio);
+      const pass1Scale = Math.min(1, fitScale);
+      const maxSize = maxTextureSizeRef.current;
+      const clampToMax = (w: number, h: number) => {
+        const over = Math.max(w / maxSize, h / maxSize, 1);
+        return [Math.max(1, Math.round(w / over)), Math.max(1, Math.round(h / over))] as const;
+      };
+      const [pass2Width, pass2Height] = clampToMax(nativeWidth * fitScale, nativeHeight * fitScale);
+      const [pass1Width, pass1Height] = clampToMax(nativeWidth * pass1Scale, nativeHeight * pass1Scale);
 
       if (canvas.width !== pass2Width || canvas.height !== pass2Height) {
         canvas.width = pass2Width;
