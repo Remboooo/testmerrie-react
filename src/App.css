@@ -75,6 +75,12 @@ body {
   bottom: 2rem;
 }
 
+.effects-quick-button:hover {
+  /* Stops it from sliding away mid-hover: the idle timer only tracks
+     mousemove over the video itself, not over this button. */
+  bottom: 2rem;
+}
+
 div.state-overlay {
   visibility: hidden;
   position: absolute;

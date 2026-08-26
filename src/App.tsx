@@ -68,7 +68,7 @@ const DRAWER_CHIP_SX = {
 const VIDEO_OVERLAY_CHIP_SX = {
   display: 'inline-flex',
   alignItems: 'center',
-  bgcolor: 'rgba(255, 255, 255, 0.08)',
+  bgcolor: 'rgba(255, 255, 255, 0.18)',
   borderRadius: '999px',
   px: 1,
 };
