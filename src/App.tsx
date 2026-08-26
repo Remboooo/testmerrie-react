@@ -365,7 +365,29 @@ export default function App() {
               }
             }}
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
-          <div 
+          {effectsEnabled && (
+            <div className={"effects-quick-button" + (mouseVisibleOnVideo && !drawerOpen ? " mousing" : "")}>
+              <DisplaySettings
+                disabled={false}
+                webglEnabled={useWebglEnabled}
+                onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
+                webglSupport={webglSupport}
+                effectiveRenderer={effectiveRenderer}
+                effects={effectsState}
+                onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
+                triggerIcon={<span style={{fontSize: '1.5rem', lineHeight: 1}}>✨</span>}
+                triggerAriaLabel="Effecten aanpassen"
+                triggerSx={{
+                  color: 'white',
+                  backgroundColor: 'transparent',
+                  '&:hover': {backgroundColor: 'rgba(128, 128, 128, 0.4)'},
+                }}
+                anchorOrigin={{vertical: 'top', horizontal: 'right'}}
+                transformOrigin={{vertical: 'bottom', horizontal: 'right'}}
+              />
+            </div>
+          )}
+          <div
             className="cast-overlay"
           >
             <Cast sx={{fontSize: "min(50vw, 50vh)"}} />

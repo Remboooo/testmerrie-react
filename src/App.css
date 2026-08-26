@@ -63,6 +63,18 @@ body {
   top: 0vh;
 }
 
+.effects-quick-button {
+  position: fixed;
+  bottom: -4rem;
+  right: 0.5rem;
+  transition: bottom 250ms ease 0s;
+  z-index: 1001;
+}
+
+.effects-quick-button.mousing {
+  bottom: 0.5rem;
+}
+
 div.state-overlay {
   visibility: hidden;
   position: absolute;

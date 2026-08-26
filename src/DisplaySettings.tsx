@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import Checkbox from '@mui/material/Checkbox';
@@ -8,6 +8,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import Box from '@mui/material/Box';
 import Settings from '@mui/icons-material/Settings';
+import { SxProps, Theme } from '@mui/material/styles';
+import type { PopoverOrigin } from '@mui/material/Popover';
 import { WebglSupport } from './webgl/useWebglSupport';
 
 export type EffectKey = 'chroma' | 'scanlines' | 'grain' | 'bulge';
@@ -39,6 +41,15 @@ export type DisplaySettingsProps = {
   effectiveRenderer: 'webgl' | 'svg';
   effects: Record<EffectKey, EffectState>;
   onEffectChange: (key: EffectKey, patch: Partial<EffectState>) => void;
+  // Lets the same popover be opened from a differently-styled trigger (the
+  // drawer's gear button vs. the video-corner quick-access button) without
+  // duplicating the popover content itself. All optional — the drawer usage
+  // gets the plain gear button unchanged.
+  triggerIcon?: ReactNode;
+  triggerSx?: SxProps<Theme>;
+  triggerAriaLabel?: string;
+  anchorOrigin?: PopoverOrigin;
+  transformOrigin?: PopoverOrigin;
 };
 
 export default function DisplaySettings({
@@ -49,6 +60,11 @@ export default function DisplaySettings({
   effectiveRenderer,
   effects,
   onEffectChange,
+  triggerIcon,
+  triggerSx,
+  triggerAriaLabel,
+  anchorOrigin,
+  transformOrigin,
 }: DisplaySettingsProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
@@ -61,10 +77,21 @@ export default function DisplaySettings({
 
   return (
     <>
-      <IconButton disabled={disabled} onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Effectinstellingen">
-        <Settings />
+      <IconButton
+        disabled={disabled}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        aria-label={triggerAriaLabel ?? 'Effectinstellingen'}
+        sx={triggerSx}
+      >
+        {triggerIcon ?? <Settings />}
       </IconButton>
-      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
+      <Menu
+        anchorEl={anchorEl}
+        open={!!anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={anchorOrigin}
+        transformOrigin={transformOrigin}
+      >
         <Box sx={{ px: 2, py: 1, minWidth: '18em' }}>
           <Tooltip title={webglTooltip} disableHoverListener={!webglTooltip}>
             <span>
