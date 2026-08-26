@@ -425,7 +425,7 @@ export default function App() {
               </Box>
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
-                <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'left'}}>
+                <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'center'}}>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => {setMuted(!effectivelyMuted); setClickCount(clickCount+1);}}
@@ -484,18 +484,20 @@ export default function App() {
                   {availableStreams.idleStream ? <FormControlLabel control={
                     <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
                   } label="🚂" /> : <></>}
-                  <FormControlLabel control={
-                    <Checkbox checked={effectsEnabled} onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}} />
-                  } label="🎛️" />
-                  <DisplaySettings
-                    disabled={!effectsEnabled}
-                    webglEnabled={useWebglEnabled}
-                    onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
-                    webglSupport={webglSupport}
-                    effectiveRenderer={effectiveRenderer}
-                    effects={effectsState}
-                    onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
-                  />
+                  <Box sx={{display: 'inline-flex', alignItems: 'center'}}>
+                    <FormControlLabel sx={{mr: 0}} control={
+                      <Checkbox checked={effectsEnabled} onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}} />
+                    } label="🎛️" />
+                    <DisplaySettings
+                      disabled={!effectsEnabled}
+                      webglEnabled={useWebglEnabled}
+                      onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
+                      webglSupport={webglSupport}
+                      effectiveRenderer={effectiveRenderer}
+                      effects={effectsState}
+                      onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
+                    />
+                  </Box>
                   <FormControlLabel control={
                     <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
                   } label="📊" />
