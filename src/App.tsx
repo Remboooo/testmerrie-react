@@ -50,6 +50,17 @@ const PROTOCOL_OPTIONS: {value: StreamProtocol, label: string, description: stri
   {value: "hls", label: "HLS", description: "Hogere vertraging, het meest bestand tegen een slechte of haperende verbinding"},
 ];
 
+// Rounded "chip" background for the drawer's checkbox toggles (🚂/✨/📊) —
+// visually groups each checkbox (and, for ✨, its attached gear button) into
+// one pill instead of a bare row of controls with no boundary between them.
+const DRAWER_CHIP_SX = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  bgcolor: 'action.hover',
+  borderRadius: '999px',
+  px: 1,
+};
+
 const QUALITY_OPTIONS: {value: QualityTier, label: string, description: string}[] = [
   {value: "auto", label: "Auto", description: "Past zich automatisch aan je verbinding aan (adaptief)"},
   {value: "best", label: "Beste", description: "Hoogste resolutie die de stream biedt"},
@@ -425,7 +436,7 @@ export default function App() {
               </Box>
               <Divider />
               <Box sx={{display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap-reverse', alignItems: 'center'}}>
-                <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'center'}}>
+                <Box sx={{display: 'flex', justifyContent: 'flex-start', flexWrap: 'wrap', alignItems: 'center', gap: 1}}>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => {setMuted(!effectivelyMuted); setClickCount(clickCount+1);}}
@@ -481,13 +492,15 @@ export default function App() {
                       </Select>
                     </FormControl>
                   </Stack>
-                  {availableStreams.idleStream ? <FormControlLabel control={
-                    <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
-                  } label="🚂" /> : <></>}
-                  <Box sx={{display: 'inline-flex', alignItems: 'center'}}>
-                    <FormControlLabel sx={{mr: 0}} control={
+                  {availableStreams.idleStream ? <Box sx={DRAWER_CHIP_SX}>
+                    <FormControlLabel sx={{mx: 0}} control={
+                      <Checkbox checked={usePlaceholderVideo} onChange={(event, checked) => {setClickCount(clickCount+1); setUsePlaceholderVideo(checked);}} />
+                    } label="🚂" />
+                  </Box> : <></>}
+                  <Box sx={DRAWER_CHIP_SX}>
+                    <FormControlLabel sx={{mx: 0}} control={
                       <Checkbox checked={effectsEnabled} onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}} />
-                    } label="🎛️" />
+                    } label="✨" />
                     <DisplaySettings
                       disabled={!effectsEnabled}
                       webglEnabled={useWebglEnabled}
@@ -498,9 +511,11 @@ export default function App() {
                       onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
                     />
                   </Box>
-                  <FormControlLabel control={
-                    <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
-                  } label="📊" />
+                  <Box sx={DRAWER_CHIP_SX}>
+                    <FormControlLabel sx={{mx: 0}} control={
+                      <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
+                    } label="📊" />
+                  </Box>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => toggleFullscreen()}
