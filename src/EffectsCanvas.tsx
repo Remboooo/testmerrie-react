@@ -295,10 +295,17 @@ export default function EffectsCanvas({ active, playing, cover, effects, amounts
       gl.useProgram(pass2Program);
       gl.uniform1i(gl.getUniformLocation(pass2Program, 'u_texture'), 0);
       gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_time'), (performance.now() - startTimeRef.current) / 1000);
-      // Logical/CSS pixels (not canvas.width/height, which tracks source
-      // resolution) so scanline pitch matches the SVG fallback's fixed
-      // 4-CSS-pixel period regardless of source resolution or DPR.
-      gl.uniform2f(gl.getUniformLocation(pass2Program, 'u_resolution'), canvas.clientWidth, canvas.clientHeight);
+      // In CSS-pixel terms (divide the device-pixel backing store by dpr),
+      // but deliberately *not* canvas.clientWidth/clientHeight (the CSS
+      // box). object-fit never rescales here — canvas.width/height is
+      // already sized to fitScale's exact contain/cover result, so 1
+      // backing-store pixel is always 1 true on-screen CSS pixel — but the
+      // box itself only matches that on the axis object-fit *doesn't*
+      // crop/letterbox. On the other axis the box is bigger (contain) or
+      // smaller (cover) than what's actually rendered, and using it there
+      // fed the scanline period the wrong axis length, which is what made
+      // them come out fat under cover + a wide letterbox.
+      gl.uniform2f(gl.getUniformLocation(pass2Program, 'u_resolution'), canvas.width / dpr, canvas.height / dpr);
       gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_grainAmount'), amounts.grain / 100);
       gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_bulgeAmount'), amounts.bulge / 100);
       gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_scanlineAmount'), amounts.scanlines / 100);
