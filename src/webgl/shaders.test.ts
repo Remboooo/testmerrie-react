@@ -1,44 +1,62 @@
 import { describe, expect, test } from 'vitest';
 import { buildPass1FragmentShader, buildPass2FragmentShader, pass1Key, pass2Key, VERTEX_SHADER_SOURCE } from './shaders';
 
+const P1_NONE = { chroma: false, bulge: false, glow: false };
+
 describe('buildPass1FragmentShader', () => {
   test('includes no effect defines when everything is disabled', () => {
-    const src = buildPass1FragmentShader({ chroma: false, bulge: false });
+    const src = buildPass1FragmentShader(P1_NONE);
     expect(src).not.toMatch(/#define EFFECT_/);
   });
 
   test('includes a define only for each enabled effect', () => {
-    const src = buildPass1FragmentShader({ chroma: true, bulge: true });
+    const src = buildPass1FragmentShader({ ...P1_NONE, chroma: true, bulge: true });
     expect(src).toContain('#define EFFECT_CHROMA');
     expect(src).toContain('#define EFFECT_BULGE');
+    expect(src).not.toContain('#define EFFECT_GLOW');
   });
 
   test('bulge normalizes the warp by its corner-case value, so sampled uv never leaves [0,1]', () => {
-    const src = buildPass1FragmentShader({ chroma: false, bulge: true });
+    const src = buildPass1FragmentShader({ ...P1_NONE, bulge: true });
     expect(src).toContain('maxWarp = 1.0 + 0.5 * (u_bulgeAmount * 0.6)');
   });
 
   test('chroma samples using uv, which bulge reassigns above it, so it reads the warped position', () => {
-    const src = buildPass1FragmentShader({ chroma: true, bulge: true });
+    const src = buildPass1FragmentShader({ ...P1_NONE, chroma: true, bulge: true });
     expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_CHROMA'));
   });
 
-  test('chroma blurs each channel, with a fraction of the radial shift rather than a fixed/texel-based radius', () => {
-    const src = buildPass1FragmentShader({ chroma: true, bulge: false });
-    expect(src).toContain('blur = off * 1.5');
-    // No resolution or texel-size term anywhere in pass 1 -- the blur (like
-    // the shift) is a plain fraction of uv space, so it stays the same size
-    // relative to the frame no matter what resolution pass 1 itself renders
-    // at (which varies with source/viewport size) or how big the viewport is.
+  test('chroma alone (no Gloed) compiles no glow code at all -- pure shift, no blur', () => {
+    const src = buildPass1FragmentShader({ ...P1_NONE, chroma: true });
+    expect(src).not.toContain('#define EFFECT_GLOW');
+  });
+
+  test('glow\'s radial-vs-flat branch is chosen by whether chroma is also active', () => {
+    // Both blurDir5 (radial) and blurFlat5 (flat) calls exist in the raw
+    // template text either way -- it's the GLSL preprocessor, not this
+    // function, that picks one via #ifdef EFFECT_CHROMA. What this function
+    // controls is only whether EFFECT_CHROMA is defined alongside EFFECT_GLOW.
+    const withChroma = buildPass1FragmentShader({ ...P1_NONE, chroma: true, glow: true });
+    expect(withChroma).toContain('#define EFFECT_CHROMA');
+    expect(withChroma).toContain('#define EFFECT_GLOW');
+
+    const withoutChroma = buildPass1FragmentShader({ ...P1_NONE, glow: true });
+    expect(withoutChroma).not.toContain('#define EFFECT_CHROMA');
+    expect(withoutChroma).toContain('#define EFFECT_GLOW');
+  });
+
+  test('no resolution/texel-size term anywhere in pass 1 -- Gloed stays sized relative to the frame', () => {
+    const src = buildPass1FragmentShader({ ...P1_NONE, chroma: true, glow: true, bulge: true });
     expect(src).not.toContain('u_resolution');
   });
 });
 
 describe('pass1Key', () => {
   test('is stable and order-independent, and differs when the enabled set differs', () => {
-    expect(pass1Key({ chroma: true, bulge: false })).toBe(pass1Key({ bulge: false, chroma: true }));
-    expect(pass1Key({ chroma: true, bulge: false })).not.toBe(pass1Key({ chroma: true, bulge: true }));
-    expect(pass1Key({ chroma: false, bulge: false })).toBe('');
+    expect(pass1Key({ ...P1_NONE, chroma: true })).toBe(pass1Key({ ...P1_NONE, chroma: true }));
+    expect(pass1Key({ ...P1_NONE, chroma: true })).not.toBe(pass1Key({ ...P1_NONE, chroma: true, bulge: true }));
+    expect(pass1Key({ ...P1_NONE, chroma: true })).not.toBe(pass1Key({ ...P1_NONE, chroma: true, glow: true }));
+    expect(pass1Key(P1_NONE)).toBe('');
   });
 });
 

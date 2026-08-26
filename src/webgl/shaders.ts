@@ -14,6 +14,7 @@ export type ShaderEffectFlags = {
   grain: boolean;
   bulge: boolean;
   scanlines: boolean;
+  glow: boolean;
 };
 
 export type ShaderCapabilities = {
@@ -24,7 +25,7 @@ export type ShaderCapabilities = {
   derivatives: boolean;
 };
 
-type Pass1Flags = Pick<ShaderEffectFlags, "chroma" | "bulge">;
+type Pass1Flags = Pick<ShaderEffectFlags, "chroma" | "bulge" | "glow">;
 type Pass2Flags = Pick<ShaderEffectFlags, "scanlines" | "grain" | "bulge">;
 
 // ---- Pass 1: the warp + chroma sampling, rendered at (at most) the video's
@@ -37,6 +38,31 @@ varying vec2 v_uv;
 uniform sampler2D u_texture;
 uniform float u_chromaAmount;
 uniform float u_bulgeAmount;
+uniform float u_glowAmount;
+
+// Directional 5-tap binomial blur (1,4,6,4,1)/16 — used for Gloed's radial
+// mode, where the direction (and how far it reaches) carries meaning.
+vec3 blurDir5(sampler2D tex, vec2 uv, vec2 dir) {
+  return (
+    texture2D(tex, uv - dir * 2.0).rgb +
+    texture2D(tex, uv - dir).rgb * 4.0 +
+    texture2D(tex, uv).rgb * 6.0 +
+    texture2D(tex, uv + dir).rgb * 4.0 +
+    texture2D(tex, uv + dir * 2.0).rgb
+  ) / 16.0;
+}
+
+// Isotropic cross-pattern blur — used for Gloed's flat mode, where there's
+// no meaningful axis (unlike the radial mode, every direction blurs equally).
+vec3 blurFlat5(sampler2D tex, vec2 uv, float radius) {
+  vec2 dx = vec2(radius, 0.0);
+  vec2 dy = vec2(0.0, radius);
+  return texture2D(tex, uv).rgb * 0.4
+    + texture2D(tex, uv + dx).rgb * 0.15
+    + texture2D(tex, uv - dx).rgb * 0.15
+    + texture2D(tex, uv + dy).rgb * 0.15
+    + texture2D(tex, uv - dy).rgb * 0.15;
+}
 
 void main() {
   vec2 uv = v_uv;
@@ -57,48 +83,35 @@ void main() {
 #endif
 
 #ifdef EFFECT_CHROMA
-  // Shift + a soft per-channel blur along the same radial axis, mirroring
-  // the SVG version's per-channel feGaussianBlur (green blurred far less
-  // than the shifted red/blue channels there too) — a bare offset alone
-  // reads as a hard double-image rather than an optical aberration.
-  // Both are plain fractions of uv space (no resolution/texel-size term
-  // anywhere here — pass 1 doesn't even have a resolution uniform), so the
-  // blur stays the same size relative to the frame regardless of pass 1's
-  // actual resolution (which varies with source/viewport size) or the
-  // viewport size itself.
-  // 5-tap binomial blur (1,4,6,4,1)/16 along dir, wider and stronger than
-  // a plain 3-tap so it reads as a soft blur rather than a faint double-edge.
   vec2 dir = uv - 0.5;
   float off = u_chromaAmount * 0.02;
-  float blur = off * 1.5;
   vec2 rUv = uv + dir * off;
   vec2 bUv = uv - dir * off;
-  vec2 gBlurDir = dir * blur * 0.25;
-  vec2 rBlurDir = dir * blur;
-  float r = (
-    texture2D(u_texture, rUv - rBlurDir * 2.0).r +
-    texture2D(u_texture, rUv - rBlurDir).r * 4.0 +
-    texture2D(u_texture, rUv).r * 6.0 +
-    texture2D(u_texture, rUv + rBlurDir).r * 4.0 +
-    texture2D(u_texture, rUv + rBlurDir * 2.0).r
-  ) / 16.0;
-  float g = (
-    texture2D(u_texture, uv - gBlurDir * 2.0).g +
-    texture2D(u_texture, uv - gBlurDir).g * 4.0 +
-    texture2D(u_texture, uv).g * 6.0 +
-    texture2D(u_texture, uv + gBlurDir).g * 4.0 +
-    texture2D(u_texture, uv + gBlurDir * 2.0).g
-  ) / 16.0;
-  float b = (
-    texture2D(u_texture, bUv - rBlurDir * 2.0).b +
-    texture2D(u_texture, bUv - rBlurDir).b * 4.0 +
-    texture2D(u_texture, bUv).b * 6.0 +
-    texture2D(u_texture, bUv + rBlurDir).b * 4.0 +
-    texture2D(u_texture, bUv + rBlurDir * 2.0).b
-  ) / 16.0;
-  vec3 color = vec3(r, g, b);
 #else
-  vec3 color = texture2D(u_texture, uv).rgb;
+  vec2 rUv = uv;
+  vec2 bUv = uv;
+#endif
+
+#ifdef EFFECT_GLOW
+  // Exactly one blur, not two stacked on top of each other: radial (scaled
+  // by distance from center, along the same axis chromatic aberration
+  // already shifts on — real lens softness works the same way) when paired
+  // with it, otherwise a plain flat blur (what this used to be bundled into
+  // the old CRT/scanlines toggle as, pre-WebGL). Per-channel against
+  // rUv/uv/bUv either way, so it still respects any active chroma shift.
+#ifdef EFFECT_CHROMA
+  vec2 glowDir = dir * (u_glowAmount * 0.03);
+  vec3 color = vec3(
+    blurDir5(u_texture, rUv, glowDir).r,
+    blurDir5(u_texture, uv, glowDir * 0.25).g,
+    blurDir5(u_texture, bUv, glowDir).b
+  );
+#else
+  float glowRadius = u_glowAmount * 0.006;
+  vec3 color = blurFlat5(u_texture, uv, glowRadius);
+#endif
+#else
+  vec3 color = vec3(texture2D(u_texture, rUv).r, texture2D(u_texture, uv).g, texture2D(u_texture, bUv).b);
 #endif
 
   gl_FragColor = vec4(color * vignette, 1.0);
@@ -109,13 +122,14 @@ export function buildPass1FragmentShader(flags: Pass1Flags): string {
   const defines = [
     flags.bulge && "#define EFFECT_BULGE",
     flags.chroma && "#define EFFECT_CHROMA",
+    flags.glow && "#define EFFECT_GLOW",
   ].filter(Boolean).join("\n");
   return `${defines}\n${PASS1_BODY}`;
 }
 
-// Stable cache key for pass 1's enabled effects, e.g. "bulge,chroma".
+// Stable cache key for pass 1's enabled effects, e.g. "bulge,chroma,glow".
 export function pass1Key(flags: Pass1Flags): string {
-  return [flags.bulge && "bulge", flags.chroma && "chroma"].filter(Boolean).join(",");
+  return [flags.bulge && "bulge", flags.chroma && "chroma", flags.glow && "glow"].filter(Boolean).join(",");
 }
 
 // ---- Pass 2: everything that only looks right evaluated at full display

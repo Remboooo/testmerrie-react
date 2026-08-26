@@ -132,6 +132,8 @@ export default function App() {
   const [grainAmount, setGrainAmount] = usePersistedState<number>("grainAmount", 15, (v) => parseInt(v));
   const [bulgeEnabled, setBulgeEnabled] = usePersistedState<boolean>("crtBulgeFilter", false, (v) => v === "true");
   const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", 30, (v) => parseInt(v));
+  const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", false, (v) => v === "true");
+  const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", 30, (v) => parseInt(v));
   const [useStatsHud, setUseStatsHud] = usePersistedState<boolean>("statsHud", false, (v) => v === "true");
 
   const webglSupport = useWebglSupport();
@@ -143,12 +145,14 @@ export default function App() {
     scanlines: { enabled: scanlinesEnabled, amount: scanlinesAmount },
     grain: { enabled: grainEnabled, amount: grainAmount },
     bulge: { enabled: bulgeEnabled, amount: bulgeAmount },
+    glow: { enabled: glowEnabled, amount: glowAmount },
   };
   const EFFECT_SETTERS: Record<EffectKey, { setEnabled: (v: boolean) => void, setAmount: (v: number) => void }> = {
     chroma: { setEnabled: setChromaEnabled, setAmount: setChromaAmount },
     scanlines: { setEnabled: setScanlinesEnabled, setAmount: setScanlinesAmount },
     grain: { setEnabled: setGrainEnabled, setAmount: setGrainAmount },
     bulge: { setEnabled: setBulgeEnabled, setAmount: setBulgeAmount },
+    glow: { setEnabled: setGlowEnabled, setAmount: setGlowAmount },
   };
   const handleEffectChange = (key: EffectKey, patch: Partial<EffectState>) => {
     const { setEnabled, setAmount } = EFFECT_SETTERS[key];
@@ -348,8 +352,8 @@ export default function App() {
                 active={true}
                 playing={!["idle", "error", "paused"].includes(playerState)}
                 cover={sourcesList.isPlaceholder}
-                effects={{chroma: chromaEnabled, scanlines: scanlinesEnabled, grain: grainEnabled, bulge: bulgeEnabled}}
-                amounts={{chroma: chromaAmount, scanlines: scanlinesAmount, grain: grainAmount, bulge: bulgeAmount}}
+                effects={{chroma: chromaEnabled, scanlines: scanlinesEnabled, grain: grainEnabled, bulge: bulgeEnabled, glow: glowEnabled}}
+                amounts={{chroma: chromaAmount, scanlines: scanlinesAmount, grain: grainAmount, bulge: bulgeAmount, glow: glowAmount}}
                 onStatusChange={(status: EffectsCanvasStatus) => setContextLost(status === "context-lost")}
               />
             )}

@@ -12,7 +12,7 @@ import { SxProps, Theme } from '@mui/material/styles';
 import type { PopoverOrigin } from '@mui/material/Popover';
 import { WebglSupport } from './webgl/useWebglSupport';
 
-export type EffectKey = 'chroma' | 'scanlines' | 'grain' | 'bulge';
+export type EffectKey = 'chroma' | 'scanlines' | 'grain' | 'bulge' | 'glow';
 export type EffectState = { enabled: boolean; amount: number };
 
 const EFFECT_CONFIG: {
@@ -25,6 +25,7 @@ const EFFECT_CONFIG: {
   sliderNeedsWebgl: boolean;
 }[] = [
   { key: 'chroma', label: 'Chromatische aberratie', icon: '🎨', checkboxNeedsWebgl: false, sliderNeedsWebgl: true },
+  { key: 'glow', label: 'Gloed', icon: '🌫️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
   { key: 'scanlines', label: 'Scanlines', icon: '📺', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
   { key: 'grain', label: 'Filmkorrel', icon: '🎞️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
   { key: 'bulge', label: 'CRT-bolling', icon: '🌐', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },

@@ -14,6 +14,7 @@ export type EffectAmounts = {
   grain: number;
   bulge: number;
   scanlines: number;
+  glow: number;
 };
 
 export type EffectsCanvasStatus = 'active' | 'context-lost';
@@ -286,6 +287,7 @@ export default function EffectsCanvas({ active, playing, cover, effects, amounts
       gl.uniform1i(gl.getUniformLocation(pass1Program, 'u_texture'), 0);
       gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_chromaAmount'), amounts.chroma / 100);
       gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_bulgeAmount'), amounts.bulge / 100);
+      gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_glowAmount'), amounts.glow / 100);
       drawFullscreenTriangle(gl, pass1Program, positionBuffer);
 
       // Pass 2: scanlines + grain, pass1 texture -> canvas, at display res.
