@@ -160,12 +160,16 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       }
       currentProgramRef.current = program;
 
-      const dpr = window.devicePixelRatio || 1;
-      const displayWidth = Math.round(canvas.clientWidth * dpr);
-      const displayHeight = Math.round(canvas.clientHeight * dpr);
-      if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
-        canvas.width = displayWidth;
-        canvas.height = displayHeight;
+      // The canvas's *backing store* is sized to the video's native
+      // resolution, not its CSS box — that's what gives it an intrinsic
+      // aspect ratio for the "object-fit: contain/cover" CSS to actually act
+      // on (a replaced element with no size mismatch has nothing to fit),
+      // exactly like the <video> element it's standing in for.
+      const targetWidth = video.videoWidth || canvas.clientWidth;
+      const targetHeight = video.videoHeight || canvas.clientHeight;
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
 
@@ -186,6 +190,11 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       const amounts = amountsRef.current;
       gl.uniform1i(gl.getUniformLocation(program, 'u_texture'), 0);
       gl.uniform1f(gl.getUniformLocation(program, 'u_time'), (performance.now() - startTimeRef.current) / 1000);
+      // Logical/CSS pixels (not the backing-store size above, which now
+      // tracks the video's native resolution) so scanline pitch matches the
+      // SVG fallback's fixed 4-CSS-pixel period regardless of source or
+      // device-pixel-ratio.
+      gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), canvas.clientWidth, canvas.clientHeight);
       gl.uniform1f(gl.getUniformLocation(program, 'u_chromaAmount'), amounts.chroma / 100);
       gl.uniform1f(gl.getUniformLocation(program, 'u_grainAmount'), amounts.grain / 100);
       gl.uniform1f(gl.getUniformLocation(program, 'u_bulgeAmount'), amounts.bulge / 100);

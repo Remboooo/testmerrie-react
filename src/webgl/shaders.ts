@@ -33,13 +33,20 @@ precision mediump float;
 varying vec2 v_uv;
 uniform sampler2D u_texture;
 uniform float u_time;
+uniform vec2 u_resolution;
 uniform float u_chromaAmount;
 uniform float u_grainAmount;
 uniform float u_bulgeAmount;
 uniform float u_scanlineAmount;
 
+// Dave Hoskins' "hash without sin": fract()/dot()-based instead of
+// sin()-based, because sin() of the large-ish arguments this needs (real
+// pixel coordinates, running time) loses enough precision under mediump to
+// turn animated noise into visible structure/banding on a lot of GPUs.
 float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
 }
 
 void main() {
@@ -49,7 +56,13 @@ void main() {
 #ifdef EFFECT_BULGE
   vec2 centered = uv - 0.5;
   float r2 = dot(centered, centered);
-  uv = uv + centered * r2 * (u_bulgeAmount * 0.6);
+  float warp = 1.0 + r2 * (u_bulgeAmount * 0.6);
+  // r2 maxes out at 0.5, at the screen corners. Dividing the whole warp by
+  // its value there guarantees every sampled uv stays inside [0,1] even at
+  // the corners, so the image scales up to keep covering the viewport
+  // instead of the corners clamping to a stretched/repeated edge pixel.
+  float maxWarp = 1.0 + 0.5 * (u_bulgeAmount * 0.6);
+  uv = 0.5 + (centered * warp) / maxWarp;
   vec2 edge = abs(uv - 0.5);
   vignette = 1.0 - smoothstep(0.45, 0.5, max(edge.x, edge.y)) * u_bulgeAmount;
 #endif
@@ -69,12 +82,21 @@ void main() {
   color *= vignette;
 
 #ifdef EFFECT_SCANLINES
-  float line = sin(uv.y * 800.0) * 0.5 + 0.5;
-  color *= mix(1.0, line, u_scanlineAmount * 0.6);
+  // Mirrors the SVG fallback's CSS gradient: a thin dark band every 4
+  // logical pixels that fades out within ~30% of the band, not a full-cycle
+  // sine wash — reads as fine scanlines rather than fat stripes.
+  float cell = mod(uv.y * u_resolution.y, 4.0) / 4.0;
+  float distToLine = min(cell, 1.0 - cell);
+  float darkness = clamp(1.0 - distToLine / 0.3, 0.0, 1.0) * 0.25;
+  color *= 1.0 - darkness * (u_scanlineAmount * 2.0);
 #endif
 
 #ifdef EFFECT_GRAIN
-  float n = hash(v_uv * vec2(1920.0, 1080.0) + u_time);
+  // gl_FragCoord is real per-texel pixel coordinates (unlike a fixed
+  // 1920x1080 guess against normalized uv, which patterns/moirés on any
+  // other resolution or aspect ratio). Time is wrapped so long idle-loop
+  // sessions don't grow the hash input large enough to lose precision.
+  float n = hash(gl_FragCoord.xy + mod(u_time, 1000.0) * 97.0);
   color += (n - 0.5) * (u_grainAmount * 0.4);
 #endif
 

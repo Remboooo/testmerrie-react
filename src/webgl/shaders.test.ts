@@ -28,9 +28,14 @@ describe('buildFragmentShader', () => {
     const src = buildFragmentShader({ chroma: true, grain: false, bulge: true, scanlines: true });
     // Both effects must sample using `uv`, which bulge reassigns above them —
     // this is what makes scanlines curve with the bulge instead of staying straight.
-    expect(src).toMatch(/uv = uv \+ centered/);
-    expect(src.indexOf('uv = uv + centered')).toBeLessThan(src.indexOf('#ifdef EFFECT_CHROMA'));
-    expect(src.indexOf('uv = uv + centered')).toBeLessThan(src.indexOf('#ifdef EFFECT_SCANLINES'));
+    expect(src).toMatch(/uv = 0\.5 \+ \(centered \* warp\) \/ maxWarp/);
+    expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_CHROMA'));
+    expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_SCANLINES'));
+  });
+
+  test('bulge normalizes the warp by its corner-case value, so sampled uv never leaves [0,1]', () => {
+    const src = buildFragmentShader({ chroma: false, grain: false, bulge: true, scanlines: false });
+    expect(src).toContain('maxWarp = 1.0 + 0.5 * (u_bulgeAmount * 0.6)');
   });
 });
 
