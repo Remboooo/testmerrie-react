@@ -1,77 +1,74 @@
 import { describe, expect, test } from 'vitest';
-import { buildFragmentShader, effectFlagsKey, VERTEX_SHADER_SOURCE, ShaderEffectFlags } from './shaders';
+import { buildPass1FragmentShader, buildPass2FragmentShader, pass1Key, pass2Key, VERTEX_SHADER_SOURCE } from './shaders';
 
-const NONE: ShaderEffectFlags = { chroma: false, grain: false, bulge: false, scanlines: false };
-
-describe('buildFragmentShader', () => {
+describe('buildPass1FragmentShader', () => {
   test('includes no effect defines when everything is disabled', () => {
-    const src = buildFragmentShader(NONE);
+    const src = buildPass1FragmentShader({ chroma: false, bulge: false });
     expect(src).not.toMatch(/#define EFFECT_/);
   });
 
   test('includes a define only for each enabled effect', () => {
-    const src = buildFragmentShader({ ...NONE, chroma: true, bulge: true });
-    expect(src).toMatch(/#define EFFECT_CHROMA/);
-    expect(src).toMatch(/#define EFFECT_BULGE/);
-    expect(src).not.toMatch(/#define EFFECT_GRAIN/);
-    expect(src).not.toMatch(/#define EFFECT_SCANLINES/);
-  });
-
-  test('all four effects enabled produces all four defines', () => {
-    const src = buildFragmentShader({ chroma: true, grain: true, bulge: true, scanlines: true });
-    for (const define of ['EFFECT_CHROMA', 'EFFECT_GRAIN', 'EFFECT_BULGE', 'EFFECT_SCANLINES']) {
-      expect(src).toContain(`#define ${define}`);
-    }
-  });
-
-  test('scanlines and chroma both read the (possibly bulge-warped) uv, not the raw varying', () => {
-    const src = buildFragmentShader({ chroma: true, grain: false, bulge: true, scanlines: true });
-    // Both effects must sample using `uv`, which bulge reassigns above them —
-    // this is what makes scanlines curve with the bulge instead of staying straight.
-    expect(src).toMatch(/uv = 0\.5 \+ \(centered \* warp\) \/ maxWarp/);
-    expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_CHROMA'));
-    expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_SCANLINES'));
+    const src = buildPass1FragmentShader({ chroma: true, bulge: true });
+    expect(src).toContain('#define EFFECT_CHROMA');
+    expect(src).toContain('#define EFFECT_BULGE');
   });
 
   test('bulge normalizes the warp by its corner-case value, so sampled uv never leaves [0,1]', () => {
-    const src = buildFragmentShader({ chroma: false, grain: false, bulge: true, scanlines: false });
+    const src = buildPass1FragmentShader({ chroma: false, bulge: true });
     expect(src).toContain('maxWarp = 1.0 + 0.5 * (u_bulgeAmount * 0.6)');
   });
 
-  test('enables the derivatives extension (guarding the fwidth-based scanline path) only when capable', () => {
-    // Both branches of the shader's own #ifdef HAS_DERIVATIVES exist in the
-    // source text either way — it's the GLSL preprocessor, not this
-    // function, that picks one — so what this function controls is only
-    // whether HAS_DERIVATIVES (and the extension pragma it depends on)
-    // get defined at all.
-    const withDerivatives = buildFragmentShader({ ...NONE, scanlines: true }, { derivatives: true });
+  test('chroma samples using uv, which bulge reassigns above it, so it reads the warped position', () => {
+    const src = buildPass1FragmentShader({ chroma: true, bulge: true });
+    expect(src.indexOf('uv = 0.5 + (centered * warp)')).toBeLessThan(src.indexOf('#ifdef EFFECT_CHROMA'));
+  });
+});
+
+describe('pass1Key', () => {
+  test('is stable and order-independent, and differs when the enabled set differs', () => {
+    expect(pass1Key({ chroma: true, bulge: false })).toBe(pass1Key({ bulge: false, chroma: true }));
+    expect(pass1Key({ chroma: true, bulge: false })).not.toBe(pass1Key({ chroma: true, bulge: true }));
+    expect(pass1Key({ chroma: false, bulge: false })).toBe('');
+  });
+});
+
+describe('buildPass2FragmentShader', () => {
+  test('includes no effect defines when everything is disabled', () => {
+    const src = buildPass2FragmentShader({ scanlines: false, grain: false, bulge: false });
+    expect(src).not.toMatch(/#define EFFECT_/);
+  });
+
+  test('scanlines re-derive the bulge warp (for curving), independent of grain', () => {
+    const src = buildPass2FragmentShader({ scanlines: true, grain: false, bulge: true });
+    expect(src).toContain('#define EFFECT_SCANLINES');
+    expect(src).toContain('#define EFFECT_BULGE');
+    expect(src).not.toContain('#define EFFECT_GRAIN');
+    // The warp recompute must be nested inside the scanlines block, not the
+    // other way around — bulge shouldn't run unless scanlines needs it.
+    expect(src.indexOf('#ifdef EFFECT_SCANLINES')).toBeLessThan(src.indexOf('#ifdef EFFECT_BULGE'));
+  });
+
+  test('enables the derivatives extension only when capable', () => {
+    const withDerivatives = buildPass2FragmentShader({ scanlines: true, grain: false, bulge: false }, { derivatives: true });
     expect(withDerivatives).toContain('#extension GL_OES_standard_derivatives : enable');
     expect(withDerivatives).toContain('#define HAS_DERIVATIVES');
 
-    const without = buildFragmentShader({ ...NONE, scanlines: true }, { derivatives: false });
+    const without = buildPass2FragmentShader({ scanlines: true, grain: false, bulge: false }, { derivatives: false });
     expect(without).not.toContain('#extension');
     expect(without).not.toContain('#define HAS_DERIVATIVES');
 
-    const defaulted = buildFragmentShader({ ...NONE, scanlines: true });
+    const defaulted = buildPass2FragmentShader({ scanlines: true, grain: false, bulge: false });
     expect(defaulted).not.toContain('#extension');
   });
 });
 
-describe('effectFlagsKey', () => {
-  test('is stable and order-independent across the flags object', () => {
-    const a = effectFlagsKey({ chroma: true, scanlines: true, grain: false, bulge: false });
-    const b = effectFlagsKey({ scanlines: true, bulge: false, chroma: true, grain: false });
+describe('pass2Key', () => {
+  test('is stable and order-independent, and differs when the enabled set differs', () => {
+    const a = pass2Key({ scanlines: true, grain: false, bulge: true });
+    const b = pass2Key({ bulge: true, scanlines: true, grain: false });
     expect(a).toBe(b);
-  });
-
-  test('differs when the enabled set differs', () => {
-    const a = effectFlagsKey({ chroma: true, grain: false, bulge: false, scanlines: false });
-    const b = effectFlagsKey({ chroma: true, grain: true, bulge: false, scanlines: false });
-    expect(a).not.toBe(b);
-  });
-
-  test('empty key for no effects', () => {
-    expect(effectFlagsKey(NONE)).toBe('');
+    expect(a).not.toBe(pass2Key({ scanlines: true, grain: true, bulge: true }));
+    expect(pass2Key({ scanlines: false, grain: false, bulge: false })).toBe('');
   });
 });
 

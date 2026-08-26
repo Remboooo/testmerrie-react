@@ -1,5 +1,5 @@
 // Fullscreen triangle: (-1,-1), (3,-1), (-1,3) covers the whole clip-space
-// quad with a single triangle, no index buffer needed.
+// quad with a single triangle, no index buffer needed. Shared by both passes.
 export const VERTEX_SHADER_SOURCE = `
 attribute vec2 a_position;
 varying vec2 v_uv;
@@ -16,38 +16,27 @@ export type ShaderEffectFlags = {
   scanlines: boolean;
 };
 
-const EFFECT_DEFINES: { key: keyof ShaderEffectFlags; define: string }[] = [
-  { key: "bulge", define: "EFFECT_BULGE" },
-  { key: "chroma", define: "EFFECT_CHROMA" },
-  { key: "scanlines", define: "EFFECT_SCANLINES" },
-  { key: "grain", define: "EFFECT_GRAIN" },
-];
+export type ShaderCapabilities = {
+  // Whether fwidth()/dFdx()/dFdy() (OES_standard_derivatives) are available —
+  // used to band-limit the scanline pattern against aliasing. Universally
+  // supported in practice, but gated on an explicit JS-side extension check
+  // rather than assumed.
+  derivatives: boolean;
+};
 
-// Order here is the shader's execution order, not just a list of #defines:
-// bulge warps uv first, chroma and scanlines both read that warped uv (so
-// scanlines curve with the bulge instead of staying straight over it), grain
-// is added last as a screen-space pass independent of uv distortion.
-const FRAGMENT_SHADER_BODY = `
+type Pass1Flags = Pick<ShaderEffectFlags, "chroma" | "bulge">;
+type Pass2Flags = Pick<ShaderEffectFlags, "scanlines" | "grain" | "bulge">;
+
+// ---- Pass 1: the warp + chroma sampling, rendered at (at most) the video's
+// own native resolution — see EffectsCanvas for why. Bulge warps uv first so
+// chroma samples the already-warped position.
+const PASS1_BODY = `
 precision mediump float;
 
 varying vec2 v_uv;
 uniform sampler2D u_texture;
-uniform float u_time;
-uniform vec2 u_resolution;
 uniform float u_chromaAmount;
-uniform float u_grainAmount;
 uniform float u_bulgeAmount;
-uniform float u_scanlineAmount;
-
-// Dave Hoskins' "hash without sin": fract()/dot()-based instead of
-// sin()-based, because sin() of the large-ish arguments this needs (real
-// pixel coordinates, running time) loses enough precision under mediump to
-// turn animated noise into visible structure/banding on a lot of GPUs.
-float hash(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
 
 void main() {
   vec2 uv = v_uv;
@@ -79,9 +68,61 @@ void main() {
   vec3 color = texture2D(u_texture, uv).rgb;
 #endif
 
-  color *= vignette;
+  gl_FragColor = vec4(color * vignette, 1.0);
+}
+`;
+
+export function buildPass1FragmentShader(flags: Pass1Flags): string {
+  const defines = [
+    flags.bulge && "#define EFFECT_BULGE",
+    flags.chroma && "#define EFFECT_CHROMA",
+  ].filter(Boolean).join("\n");
+  return `${defines}\n${PASS1_BODY}`;
+}
+
+// Stable cache key for pass 1's enabled effects, e.g. "bulge,chroma".
+export function pass1Key(flags: Pass1Flags): string {
+  return [flags.bulge && "bulge", flags.chroma && "chroma"].filter(Boolean).join(",");
+}
+
+// ---- Pass 2: everything that only looks right evaluated at full display
+// resolution — scanlines and grain — composited over pass 1's output.
+// Scanlines re-derive the same bulge warp purely to know where the curved
+// raster lines fall (cheap: no texture fetch, just the uv math); the color
+// itself already came out of pass 1 warped, so this doesn't warp it twice.
+const PASS2_BODY = `
+precision mediump float;
+
+varying vec2 v_uv;
+uniform sampler2D u_texture;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform float u_grainAmount;
+uniform float u_bulgeAmount;
+uniform float u_scanlineAmount;
+
+// Dave Hoskins' "hash without sin": fract()/dot()-based instead of
+// sin()-based, because sin() of the large-ish arguments this needs (real
+// pixel coordinates, running time) loses enough precision under mediump to
+// turn animated noise into visible structure/banding on a lot of GPUs.
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+void main() {
+  vec3 color = texture2D(u_texture, v_uv).rgb;
 
 #ifdef EFFECT_SCANLINES
+  vec2 uv = v_uv;
+#ifdef EFFECT_BULGE
+  vec2 centered = uv - 0.5;
+  float r2 = dot(centered, centered);
+  float warp = 1.0 + r2 * (u_bulgeAmount * 0.6);
+  float maxWarp = 1.0 + 0.5 * (u_bulgeAmount * 0.6);
+  uv = 0.5 + (centered * warp) / maxWarp;
+#endif
   // Mirrors the SVG fallback's CSS gradient: a thin dark band every 4
   // logical pixels that fades out within ~30% of the band, not a full-cycle
   // sine wash — reads as fine scanlines rather than fat stripes.
@@ -94,8 +135,8 @@ void main() {
   // covers more than a sliver of a period — chiefly near the bulge warp,
   // where neighbouring fragments' uv.y can diverge sharply. This also
   // restores the soft edge the SVG version got for free from its
-  // feGaussianBlur, and scales it to how much softening is actually needed
-  // instead of a fixed amount.
+  // feGaussianBlur, scaled to how much softening is actually needed instead
+  // of a fixed amount.
   float aa = max(fwidth(y) / 4.0, 0.001);
   float darkness = (1.0 - smoothstep(0.3 - aa, 0.3 + aa, distToLine)) * 0.25;
 #else
@@ -105,10 +146,11 @@ void main() {
 #endif
 
 #ifdef EFFECT_GRAIN
-  // gl_FragCoord is real per-texel pixel coordinates (unlike a fixed
-  // 1920x1080 guess against normalized uv, which patterns/moirés on any
-  // other resolution or aspect ratio). Time is wrapped so long idle-loop
-  // sessions don't grow the hash input large enough to lose precision.
+  // gl_FragCoord is real per-texel pixel coordinates at pass 2's (full
+  // display) resolution, so grain stays crisp instead of being computed
+  // coarse and smeared across several display pixels. Time is wrapped so
+  // long idle-loop sessions don't grow the hash input large enough to lose
+  // precision.
   float n = hash(gl_FragCoord.xy + mod(u_time, 1000.0) * 97.0);
   color += (n - 0.5) * (u_grainAmount * 0.4);
 #endif
@@ -117,28 +159,19 @@ void main() {
 }
 `;
 
-export type ShaderCapabilities = {
-  // Whether fwidth()/dFdx()/dFdy() (OES_standard_derivatives) are available —
-  // used to band-limit the scanline pattern against aliasing. Universally
-  // supported in practice, but gated on an explicit JS-side extension check
-  // rather than assumed.
-  derivatives: boolean;
-};
-
-// Compiles only the enabled effects into the shader (as #defines guarding
-// #ifdef blocks) so a disabled effect costs nothing at runtime, and so a
-// distinct combination of enabled effects gets its own program the caller can
-// cache and reuse.
-export function buildFragmentShader(flags: ShaderEffectFlags, caps: ShaderCapabilities = { derivatives: false }): string {
-  const extension = caps.derivatives ? '#extension GL_OES_standard_derivatives : enable\n#define HAS_DERIVATIVES\n' : '';
-  const defines = EFFECT_DEFINES
-    .filter(({ key }) => flags[key])
-    .map(({ define }) => `#define ${define}`)
-    .join("\n");
-  return `${extension}${defines}\n${FRAGMENT_SHADER_BODY}`;
+export function buildPass2FragmentShader(flags: Pass2Flags, caps: ShaderCapabilities = { derivatives: false }): string {
+  const extension = caps.derivatives ? "#extension GL_OES_standard_derivatives : enable\n#define HAS_DERIVATIVES\n" : "";
+  const defines = [
+    flags.scanlines && "#define EFFECT_SCANLINES",
+    flags.grain && "#define EFFECT_GRAIN",
+    // Only read (inside EFFECT_SCANLINES) when curving the raster lines with
+    // the bulge; harmless to define whenever bulge is on regardless.
+    flags.bulge && "#define EFFECT_BULGE",
+  ].filter(Boolean).join("\n");
+  return `${extension}${defines}\n${PASS2_BODY}`;
 }
 
-// Stable cache key for a set of enabled effects, e.g. "bulge,chroma".
-export function effectFlagsKey(flags: ShaderEffectFlags): string {
-  return EFFECT_DEFINES.filter(({ key }) => flags[key]).map(({ key }) => key).join(",");
+// Stable cache key for pass 2's enabled effects, e.g. "bulge,grain,scanlines".
+export function pass2Key(flags: Pass2Flags): string {
+  return [flags.bulge && "bulge", flags.grain && "grain", flags.scanlines && "scanlines"].filter(Boolean).join(",");
 }

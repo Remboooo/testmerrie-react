@@ -1,5 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { buildFragmentShader, effectFlagsKey, ShaderCapabilities, ShaderEffectFlags, VERTEX_SHADER_SOURCE } from './webgl/shaders';
+import {
+  buildPass1FragmentShader,
+  buildPass2FragmentShader,
+  pass1Key,
+  pass2Key,
+  ShaderCapabilities,
+  ShaderEffectFlags,
+  VERTEX_SHADER_SOURCE,
+} from './webgl/shaders';
 
 export type EffectAmounts = {
   chroma: number;
@@ -36,9 +44,9 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string):
   return shader;
 }
 
-function linkProgram(gl: WebGLRenderingContext, flags: ShaderEffectFlags, caps: ShaderCapabilities): WebGLProgram {
+function linkProgram(gl: WebGLRenderingContext, fragmentSource: string): WebGLProgram {
   const vertexShader = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, buildFragmentShader(flags, caps));
+  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
   if (!program) throw new Error('createProgram failed');
   gl.attachShader(program, vertexShader);
@@ -52,16 +60,48 @@ function linkProgram(gl: WebGLRenderingContext, flags: ShaderEffectFlags, caps: 
   return program;
 }
 
+function drawFullscreenTriangle(gl: WebGLRenderingContext, program: WebGLProgram, positionBuffer: WebGLBuffer) {
+  gl.useProgram(program);
+  const positionLoc = gl.getAttribLocation(program, 'a_position');
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.enableVertexAttribArray(positionLoc);
+  gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+function createRenderTexture(gl: WebGLRenderingContext): WebGLTexture {
+  const texture = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  return texture;
+}
+
 // Imperative WebGL wrapper, in the same spirit as OvenPlayer.tsx: React just
 // owns the <canvas> element and prop refs, everything else (GL context,
 // compiled programs, the render loop) lives in refs and is driven by effects.
+//
+// Rendering is split into two passes so the expensive per-fragment math only
+// runs where it actually helps:
+//   Pass 1 (bulge warp + chroma) is fundamentally limited by the source
+//   video's own resolution — sampling it at more fragments than that (or
+//   more than the viewport can even show) adds render cost, not detail.
+//   Pass 2 (scanlines + grain) is procedurally generated, not sourced from
+//   the video texture, so it only looks right computed at full display
+//   resolution — otherwise it's undersampled relative to what it's stretched
+//   to and aliases.
 export default function EffectsCanvas({ active, playing, effects, amounts, onStatusChange }: EffectsCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGLRenderingContext | null>(null);
-  const textureRef = useRef<WebGLTexture | null>(null);
+  const videoTextureRef = useRef<WebGLTexture | null>(null);
+  const pass1FramebufferRef = useRef<WebGLFramebuffer | null>(null);
+  const pass1TextureRef = useRef<WebGLTexture | null>(null);
+  const pass1SizeRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const positionBufferRef = useRef<WebGLBuffer | null>(null);
-  const programCacheRef = useRef<Map<string, WebGLProgram>>(new Map());
-  const currentProgramRef = useRef<WebGLProgram | null>(null);
+  const pass1ProgramCacheRef = useRef<Map<string, WebGLProgram>>(new Map());
+  const pass2ProgramCacheRef = useRef<Map<string, WebGLProgram>>(new Map());
   const rafRef = useRef<number | null>(null);
   const lostRef = useRef<boolean>(false);
   const startTimeRef = useRef<number>(performance.now());
@@ -92,22 +132,21 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
     // rather than assumed — used to band-limit the scanline pattern.
     capsRef.current = { derivatives: !!gl.getExtension('OES_standard_derivatives') };
 
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    const videoTexture = createRenderTexture(gl);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    textureRef.current = texture;
+    videoTextureRef.current = videoTexture;
+
+    pass1TextureRef.current = createRenderTexture(gl);
+    pass1FramebufferRef.current = gl.createFramebuffer();
+    pass1SizeRef.current = { width: 0, height: 0 };
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     positionBufferRef.current = positionBuffer;
 
-    programCacheRef.current.clear();
-    currentProgramRef.current = null;
+    pass1ProgramCacheRef.current.clear();
+    pass2ProgramCacheRef.current.clear();
 
     const handleContextLost = (event: Event) => {
       event.preventDefault();
@@ -117,11 +156,11 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       onStatusChangeRef.current('context-lost');
     };
     const handleContextRestored = () => {
-      // Programs/textures/buffers from the lost context are gone; the
-      // simplest correct recovery is to remount this whole effect.
+      // Every GL object from the lost context is gone; the simplest correct
+      // recovery is to remount this whole effect.
       lostRef.current = false;
-      programCacheRef.current.clear();
-      currentProgramRef.current = null;
+      pass1ProgramCacheRef.current.clear();
+      pass2ProgramCacheRef.current.clear();
       onStatusChangeRef.current('active');
     };
     canvas.addEventListener('webglcontextlost', handleContextLost, false);
@@ -137,7 +176,8 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       // Explicitly free the GPU-side context rather than waiting on GC.
       gl.getExtension('WEBGL_lose_context')?.loseContext();
       glRef.current = null;
-      programCacheRef.current.clear();
+      pass1ProgramCacheRef.current.clear();
+      pass2ProgramCacheRef.current.clear();
     };
   }, [active]);
 
@@ -156,39 +196,56 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       if (!video || video.readyState < video.HAVE_CURRENT_DATA) return;
 
       const flags = effectsRef.current;
-      const key = effectFlagsKey(flags);
-      let program = programCacheRef.current.get(key);
-      if (!program) {
-        program = linkProgram(gl, flags, capsRef.current);
-        programCacheRef.current.set(key, program);
+      const amounts = amountsRef.current;
+      const positionBuffer = positionBufferRef.current!;
+
+      let pass1Program = pass1ProgramCacheRef.current.get(pass1Key(flags));
+      if (!pass1Program) {
+        pass1Program = linkProgram(gl, buildPass1FragmentShader(flags));
+        pass1ProgramCacheRef.current.set(pass1Key(flags), pass1Program);
       }
-      currentProgramRef.current = program;
+      let pass2Program = pass2ProgramCacheRef.current.get(pass2Key(flags));
+      if (!pass2Program) {
+        pass2Program = linkProgram(gl, buildPass2FragmentShader(flags, capsRef.current));
+        pass2ProgramCacheRef.current.set(pass2Key(flags), pass2Program);
+      }
 
       // The canvas's *backing store* keeps the video's native aspect ratio
       // (not its CSS box's) — that's what gives it an intrinsic aspect ratio
-      // for the "object-fit: contain/cover" CSS to actually act on (a
-      // replaced element with no size mismatch has nothing to fit), exactly
-      // like the <video> element it's standing in for. But its *resolution*
-      // is bumped up to at least the display size when the video's native
-      // resolution is lower (e.g. a 720p rendition shown fullscreen on a
-      // 1440p+ display) — otherwise the scanline/grain patterns are computed
-      // at too few texels and alias badly once the browser's object-fit
-      // upscales the canvas to fill a much larger box.
+      // for the "object-fit: contain/cover" CSS to actually act on, exactly
+      // like the <video> element it's standing in for. Its *resolution* is
+      // bumped to at least the display size when the source is lower-res, so
+      // pass 2's procedural effects aren't undersampled relative to what
+      // they're displayed at. Pass 1 gets the opposite treatment — capped at
+      // whichever is *smaller* of native or display resolution, since its
+      // work (the warp + chroma sampling) is fundamentally limited by the
+      // source video's own detail and gains nothing from extra fragments,
+      // whether that ceiling comes from the source or from a small viewport.
       const dpr = window.devicePixelRatio || 1;
       const displayWidth = canvas.clientWidth * dpr;
       const displayHeight = canvas.clientHeight * dpr;
       const nativeWidth = video.videoWidth || displayWidth;
       const nativeHeight = video.videoHeight || displayHeight;
-      const upscale = Math.max(1, displayWidth / nativeWidth, displayHeight / nativeHeight);
-      const targetWidth = Math.round(nativeWidth * upscale);
-      const targetHeight = Math.round(nativeHeight * upscale);
-      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-      }
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      const pass2Scale = Math.max(1, displayWidth / nativeWidth, displayHeight / nativeHeight);
+      const pass1Scale = Math.min(1, displayWidth / nativeWidth, displayHeight / nativeHeight);
+      const pass2Width = Math.round(nativeWidth * pass2Scale);
+      const pass2Height = Math.round(nativeHeight * pass2Scale);
+      const pass1Width = Math.max(1, Math.round(nativeWidth * pass1Scale));
+      const pass1Height = Math.max(1, Math.round(nativeHeight * pass1Scale));
 
-      gl.bindTexture(gl.TEXTURE_2D, textureRef.current);
+      if (canvas.width !== pass2Width || canvas.height !== pass2Height) {
+        canvas.width = pass2Width;
+        canvas.height = pass2Height;
+      }
+      if (pass1SizeRef.current.width !== pass1Width || pass1SizeRef.current.height !== pass1Height) {
+        gl.bindTexture(gl.TEXTURE_2D, pass1TextureRef.current);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, pass1Width, pass1Height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, pass1FramebufferRef.current);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pass1TextureRef.current, 0);
+        pass1SizeRef.current = { width: pass1Width, height: pass1Height };
+      }
+
+      gl.bindTexture(gl.TEXTURE_2D, videoTextureRef.current);
       try {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
       } catch {
@@ -196,26 +253,29 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
         return;
       }
 
-      gl.useProgram(program);
-      const positionLoc = gl.getAttribLocation(program, 'a_position');
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBufferRef.current);
-      gl.enableVertexAttribArray(positionLoc);
-      gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+      // Pass 1: warp + chroma, video texture -> pass1 texture, at pass1 res.
+      gl.bindFramebuffer(gl.FRAMEBUFFER, pass1FramebufferRef.current);
+      gl.viewport(0, 0, pass1Width, pass1Height);
+      gl.bindTexture(gl.TEXTURE_2D, videoTextureRef.current);
+      gl.uniform1i(gl.getUniformLocation(pass1Program, 'u_texture'), 0);
+      gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_chromaAmount'), amounts.chroma / 100);
+      gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_bulgeAmount'), amounts.bulge / 100);
+      drawFullscreenTriangle(gl, pass1Program, positionBuffer);
 
-      const amounts = amountsRef.current;
-      gl.uniform1i(gl.getUniformLocation(program, 'u_texture'), 0);
-      gl.uniform1f(gl.getUniformLocation(program, 'u_time'), (performance.now() - startTimeRef.current) / 1000);
-      // Logical/CSS pixels (not the backing-store size above, which now
-      // tracks the video's native resolution) so scanline pitch matches the
-      // SVG fallback's fixed 4-CSS-pixel period regardless of source or
-      // device-pixel-ratio.
-      gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), canvas.clientWidth, canvas.clientHeight);
-      gl.uniform1f(gl.getUniformLocation(program, 'u_chromaAmount'), amounts.chroma / 100);
-      gl.uniform1f(gl.getUniformLocation(program, 'u_grainAmount'), amounts.grain / 100);
-      gl.uniform1f(gl.getUniformLocation(program, 'u_bulgeAmount'), amounts.bulge / 100);
-      gl.uniform1f(gl.getUniformLocation(program, 'u_scanlineAmount'), amounts.scanlines / 100);
-
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      // Pass 2: scanlines + grain, pass1 texture -> canvas, at display res.
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.bindTexture(gl.TEXTURE_2D, pass1TextureRef.current);
+      gl.uniform1i(gl.getUniformLocation(pass2Program, 'u_texture'), 0);
+      gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_time'), (performance.now() - startTimeRef.current) / 1000);
+      // Logical/CSS pixels (not canvas.width/height, which tracks source
+      // resolution) so scanline pitch matches the SVG fallback's fixed
+      // 4-CSS-pixel period regardless of source resolution or DPR.
+      gl.uniform2f(gl.getUniformLocation(pass2Program, 'u_resolution'), canvas.clientWidth, canvas.clientHeight);
+      gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_grainAmount'), amounts.grain / 100);
+      gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_bulgeAmount'), amounts.bulge / 100);
+      gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_scanlineAmount'), amounts.scanlines / 100);
+      drawFullscreenTriangle(gl, pass2Program, positionBuffer);
     };
 
     rafRef.current = requestAnimationFrame(renderFrame);
