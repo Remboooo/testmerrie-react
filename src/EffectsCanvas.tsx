@@ -60,8 +60,9 @@ function linkProgram(gl: WebGLRenderingContext, fragmentSource: string): WebGLPr
   return program;
 }
 
+// Caller must gl.useProgram(program) first — uniform locations are only
+// valid to set while the program they came from is the active one.
 function drawFullscreenTriangle(gl: WebGLRenderingContext, program: WebGLProgram, positionBuffer: WebGLBuffer) {
-  gl.useProgram(program);
   const positionLoc = gl.getAttribLocation(program, 'a_position');
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.enableVertexAttribArray(positionLoc);
@@ -257,6 +258,7 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       gl.bindFramebuffer(gl.FRAMEBUFFER, pass1FramebufferRef.current);
       gl.viewport(0, 0, pass1Width, pass1Height);
       gl.bindTexture(gl.TEXTURE_2D, videoTextureRef.current);
+      gl.useProgram(pass1Program);
       gl.uniform1i(gl.getUniformLocation(pass1Program, 'u_texture'), 0);
       gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_chromaAmount'), amounts.chroma / 100);
       gl.uniform1f(gl.getUniformLocation(pass1Program, 'u_bulgeAmount'), amounts.bulge / 100);
@@ -266,6 +268,7 @@ export default function EffectsCanvas({ active, playing, effects, amounts, onSta
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.bindTexture(gl.TEXTURE_2D, pass1TextureRef.current);
+      gl.useProgram(pass2Program);
       gl.uniform1i(gl.getUniformLocation(pass2Program, 'u_texture'), 0);
       gl.uniform1f(gl.getUniformLocation(pass2Program, 'u_time'), (performance.now() - startTimeRef.current) / 1000);
       // Logical/CSS pixels (not canvas.width/height, which tracks source
