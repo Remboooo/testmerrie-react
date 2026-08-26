@@ -65,14 +65,14 @@ body {
 
 .effects-quick-button {
   position: fixed;
-  bottom: -4rem;
-  right: 0.5rem;
+  bottom: -6rem;
+  right: 2rem;
   transition: bottom 250ms ease 0s;
   z-index: 1001;
 }
 
 .effects-quick-button.mousing {
-  bottom: 0.5rem;
+  bottom: 2rem;
 }
 
 div.state-overlay {
