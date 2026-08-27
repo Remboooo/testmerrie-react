@@ -448,11 +448,10 @@ export default function App() {
               preset={preset}
               onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
               onOpenChange={setEffectsPopoverOpen}
-              triggerIcon={<PhotoFilter sx={{fontSize: '2rem'}} />}
+              triggerIcon={<PhotoFilter sx={{fontSize: '2.5rem'}} />}
               triggerAriaLabel="Effecten aanpassen"
               triggerSx={{
                 color: 'white',
-                opacity: effectsEnabled ? 1 : 0.5,
                 backgroundColor: 'transparent',
                 padding: '0.75rem',
                 '&:hover': {backgroundColor: 'rgba(128, 128, 128, 0.4)'},
@@ -610,7 +609,6 @@ export default function App() {
                       onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
                       triggerIcon={<PhotoFilter />}
                       triggerAriaLabel="Effecten aanpassen"
-                      triggerSx={{opacity: effectsEnabled ? 1 : 0.5}}
                     />
                     <Checkbox
                       onClick={() => toggleFullscreen()}

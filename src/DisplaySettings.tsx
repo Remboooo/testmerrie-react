@@ -29,7 +29,7 @@ const EFFECT_CONFIG: {
   sliderNeedsWebgl: boolean;
 }[] = [
   { key: 'chroma', label: 'Chromatic Aberration', icon: '🎨', checkboxNeedsWebgl: false, sliderNeedsWebgl: true },
-  { key: 'glow', label: 'Glow', icon: '🌫️', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
+  { key: 'glow', label: 'Blur', icon: '☁️', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
   { key: 'scanlines', label: 'Scanlines', icon: '📺', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
   { key: 'grain', label: 'Film Grain', icon: '🎞️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
   { key: 'bulge', label: 'CRT Bulge', icon: '🌐', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
