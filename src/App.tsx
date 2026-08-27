@@ -75,16 +75,12 @@ const VIDEO_OVERLAY_CHIP_SX = {
 
 // Full, deterministic effect states for the named presets — selecting one
 // sets every effect (not just the ones it's "about"), so the result never
-// depends on whatever was previously set. "custom" isn't a state to apply,
-// just what gets recorded once any slider/checkbox is touched by hand.
-const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom'>, Record<EffectKey, EffectState>> = {
-  off: {
-    chroma: { enabled: false, amount: 40 },
-    grain: { enabled: false, amount: 15 },
-    glow: { enabled: false, amount: 30 },
-    scanlines: { enabled: false, amount: 50 },
-    bulge: { enabled: false, amount: 30 },
-  },
+// depends on whatever was previously set. "custom" and "off" aren't states
+// to apply: "custom" is just what gets recorded once any slider/checkbox is
+// touched by hand, and "off" is the effects master switch itself now (see
+// `effectsEnabled` below) — it doesn't touch individual effect settings, so
+// switching away from it restores exactly what was set before.
+const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom' | 'off'>, Record<EffectKey, EffectState>> = {
   cinematic: {
     chroma: { enabled: true, amount: 35 },
     grain: { enabled: true, amount: 50 },
@@ -150,7 +146,6 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
-  const [effectsEnabled, setEffectsEnabled] = usePersistedState<boolean>("effectsEnabled", true, (v) => v !== "false");
   const [useWebglEnabled, setUseWebglEnabled] = usePersistedState<boolean>("webglEnabled", true, (v) => v !== "false");
   const [chromaEnabled, setChromaEnabled] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
   const [chromaAmount, setChromaAmount] = usePersistedState<number>("chromaAmount", 40, (v) => parseInt(v));
@@ -163,6 +158,11 @@ export default function App() {
   const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", false, (v) => v === "true");
   const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", 30, (v) => parseInt(v));
   const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", "custom", (v) => (v === "off" || v === "cinematic" || v === "retro") ? v : "custom");
+  // "off" *is* the effects master switch now, not a separate flag — a
+  // preset like any other, just one that doesn't touch individual effect
+  // settings, so switching away from it restores exactly what was set
+  // before rather than resetting anything.
+  const effectsEnabled = preset !== "off";
   const [useStatsHud, setUseStatsHud] = usePersistedState<boolean>("statsHud", false, (v) => v === "true");
 
   const webglSupport = useWebglSupport();
@@ -194,7 +194,7 @@ export default function App() {
   };
   const handlePresetChange = (name: PresetName) => {
     setPreset(name);
-    if (name !== "custom") {
+    if (name !== "custom" && name !== "off") {
       (Object.keys(PRESET_EFFECTS[name]) as EffectKey[]).forEach((key) => {
         const { setEnabled, setAmount } = EFFECT_SETTERS[key];
         setEnabled(PRESET_EFFECTS[name][key].enabled);
@@ -442,13 +442,7 @@ export default function App() {
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
           <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
             <Box sx={VIDEO_OVERLAY_CHIP_SX}>
-              <Checkbox
-                checked={effectsEnabled}
-                onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}}
-                sx={{color: 'white', '&.Mui-checked': {color: 'white'}}}
-              />
               <DisplaySettings
-                disabled={!effectsEnabled}
                 webglEnabled={useWebglEnabled}
                 onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
                 webglSupport={webglSupport}
@@ -462,6 +456,7 @@ export default function App() {
                 triggerAriaLabel="Effecten aanpassen"
                 triggerSx={{
                   color: 'white',
+                  opacity: effectsEnabled ? 1 : 0.5,
                   backgroundColor: 'transparent',
                   padding: '0.75rem',
                   '&:hover': {backgroundColor: 'rgba(128, 128, 128, 0.4)'},
@@ -604,19 +599,18 @@ export default function App() {
                     } label="🚂" />
                   </Box> : <></>}
                   <Box sx={DRAWER_CHIP_SX}>
-                    <FormControlLabel sx={{mx: 0}} control={
-                      <Checkbox checked={effectsEnabled} onChange={(event, checked) => {setClickCount(clickCount+1); setEffectsEnabled(checked);}} />
-                    } label="✨" />
                     <DisplaySettings
-                      disabled={!effectsEnabled}
                       webglEnabled={useWebglEnabled}
                       onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
                       webglSupport={webglSupport}
                       effectiveRenderer={effectiveRenderer}
                       effects={effectsState}
                       onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
-                preset={preset}
-                onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
+                      preset={preset}
+                      onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
+                      triggerIcon={<AutoAwesome />}
+                      triggerAriaLabel="Effecten aanpassen"
+                      triggerSx={{opacity: effectsEnabled ? 1 : 0.5}}
                     />
                   </Box>
                   <Box sx={DRAWER_CHIP_SX}>

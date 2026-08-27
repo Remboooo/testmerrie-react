@@ -87,10 +87,6 @@ function PresetSwitch({ value, onChange }: { value: PresetName; onChange: (v: Pr
 }
 
 export type DisplaySettingsProps = {
-  // The effects master switch (a separate checkbox next to this button in
-  // the drawer) — when off, the gear can't be opened at all, mirroring how
-  // WebGL-only controls inside it are greyed out rather than hidden.
-  disabled: boolean;
   webglEnabled: boolean;
   onWebglEnabledChange: (v: boolean) => void;
   webglSupport: WebglSupport;
@@ -115,7 +111,6 @@ export type DisplaySettingsProps = {
 };
 
 export default function DisplaySettings({
-  disabled,
   webglEnabled,
   onWebglEnabledChange,
   webglSupport,
@@ -143,7 +138,6 @@ export default function DisplaySettings({
   return (
     <>
       <IconButton
-        disabled={disabled}
         onClick={(event) => {setAnchorEl(event.currentTarget); onOpenChange?.(true);}}
         aria-label={triggerAriaLabel ?? 'Effectinstellingen'}
         sx={triggerSx}
