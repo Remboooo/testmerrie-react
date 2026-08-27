@@ -14,7 +14,7 @@ import { WebglSupport } from './webgl/useWebglSupport';
 
 export type EffectKey = 'chroma' | 'scanlines' | 'grain' | 'bulge' | 'glow';
 export type EffectState = { enabled: boolean; amount: number };
-export type PresetName = 'cinematic' | 'retro' | 'custom';
+export type PresetName = 'off' | 'cinematic' | 'retro' | 'custom';
 
 // Deliberately English, unlike the rest of the app's Dutch UI copy — the
 // Dutch translations for these read awkwardly ("Chromatische aberratie",
@@ -29,24 +29,26 @@ const EFFECT_CONFIG: {
   sliderNeedsWebgl: boolean;
 }[] = [
   { key: 'chroma', label: 'Chromatic Aberration', icon: '🎨', checkboxNeedsWebgl: false, sliderNeedsWebgl: true },
-  { key: 'glow', label: 'Glow', icon: '🌫️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
+  { key: 'glow', label: 'Glow', icon: '🌫️', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
   { key: 'scanlines', label: 'Scanlines', icon: '📺', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
   { key: 'grain', label: 'Film Grain', icon: '🎞️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
   { key: 'bulge', label: 'CRT Bulge', icon: '🌐', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
 ];
 
 const PRESET_OPTIONS: { key: PresetName; emoji: string; label: string }[] = [
+  { key: 'off', emoji: '🚫', label: 'Off' },
   { key: 'cinematic', emoji: '🎬', label: 'Cinematic' },
   { key: 'retro', emoji: '📼', label: 'Retro' },
   { key: 'custom', emoji: '🎛️', label: 'Custom' },
 ];
 
-// A pill-in-a-pill three-way segmented switch, like the on/off toggles this
-// is modeled after — a sliding indicator behind three equal-width emoji
-// buttons rather than a dropdown, since there are only three options and
-// they're meant to be a quick, visual pick.
+// A pill-in-a-pill segmented switch, like the on/off toggles this is
+// modeled after — a sliding indicator behind N equal-width emoji buttons
+// rather than a dropdown, since the options are meant to be a quick, visual
+// pick rather than a list to scan.
 function PresetSwitch({ value, onChange }: { value: PresetName; onChange: (v: PresetName) => void }) {
   const index = PRESET_OPTIONS.findIndex((o) => o.key === value);
+  const n = PRESET_OPTIONS.length;
   return (
     <Box sx={{ position: 'relative', display: 'flex', bgcolor: 'action.hover', borderRadius: '999px', height: '2.5rem' }}>
       <Box
@@ -54,8 +56,8 @@ function PresetSwitch({ value, onChange }: { value: PresetName; onChange: (v: Pr
           position: 'absolute',
           top: '3px',
           bottom: '3px',
-          left: `calc(${index} * 100% / 3 + 3px)`,
-          width: 'calc(100% / 3 - 6px)',
+          left: `calc(${index} * 100% / ${n} + 3px)`,
+          width: `calc(100% / ${n} - 6px)`,
           bgcolor: 'primary.main',
           borderRadius: '999px',
           transition: 'left 200ms ease',

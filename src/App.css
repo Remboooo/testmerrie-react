@@ -289,3 +289,11 @@ div.stream-selector-and-selection-options {
 .mainVideoContainer.chromaFilter .player-container {
   filter: url(#chromatic-aberration);
 }
+
+.mainVideoContainer.glowFilter .player-container {
+  filter: url(#glow);
+}
+
+.mainVideoContainer.chromaFilter.glowFilter .player-container {
+  filter: url(#chromatic-aberration) url(#glow);
+}

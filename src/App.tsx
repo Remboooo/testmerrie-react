@@ -73,14 +73,21 @@ const VIDEO_OVERLAY_CHIP_SX = {
   px: 1,
 };
 
-// Full, deterministic effect states for the two named presets — selecting
-// one sets every effect (not just the ones it's "about"), so the result
-// never depends on whatever was previously set. "custom" isn't a state to
-// apply, just what gets recorded once any slider/checkbox is touched by hand.
+// Full, deterministic effect states for the named presets — selecting one
+// sets every effect (not just the ones it's "about"), so the result never
+// depends on whatever was previously set. "custom" isn't a state to apply,
+// just what gets recorded once any slider/checkbox is touched by hand.
 const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom'>, Record<EffectKey, EffectState>> = {
+  off: {
+    chroma: { enabled: false, amount: 40 },
+    grain: { enabled: false, amount: 15 },
+    glow: { enabled: false, amount: 30 },
+    scanlines: { enabled: false, amount: 50 },
+    bulge: { enabled: false, amount: 30 },
+  },
   cinematic: {
     chroma: { enabled: true, amount: 35 },
-    grain: { enabled: true, amount: 20 },
+    grain: { enabled: true, amount: 50 },
     glow: { enabled: false, amount: 30 },
     scanlines: { enabled: false, amount: 50 },
     bulge: { enabled: false, amount: 30 },
@@ -155,7 +162,7 @@ export default function App() {
   const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", 30, (v) => parseInt(v));
   const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", false, (v) => v === "true");
   const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", 30, (v) => parseInt(v));
-  const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", "custom", (v) => (v === "cinematic" || v === "retro") ? v : "custom");
+  const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", "custom", (v) => (v === "off" || v === "cinematic" || v === "retro") ? v : "custom");
   const [useStatsHud, setUseStatsHud] = usePersistedState<boolean>("statsHud", false, (v) => v === "true");
 
   const webglSupport = useWebglSupport();
@@ -356,6 +363,15 @@ export default function App() {
 
   return (
     <div className={"App " + (retrying ? "loading" : playerState) + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
+      {/* SVG-fallback glow filter — unlike #chromatic-aberration (static, index.html),
+          this one is rendered here so stdDeviation can track glowAmount reactively. */}
+      <svg width="0" height="0" style={{position: "absolute"}}>
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation={(glowAmount / 100) * 3} />
+          </filter>
+        </defs>
+      </svg>
       <DiscordAuth
         setUserInfo={setUserInfo}
         setAuthenticated={setAuthenticated}
@@ -365,7 +381,8 @@ export default function App() {
         <ChromecastSupport streamSelection={chromecastStream} onConnect={setCcConnected}>
           <div className={"mainVideoContainer"
             + (effectsEnabled && effectiveRenderer === "webgl" ? " webglActive" : "")
-            + (effectsEnabled && effectiveRenderer === "svg" && chromaEnabled ? " chromaFilter" : "")}>
+            + (effectsEnabled && effectiveRenderer === "svg" && chromaEnabled ? " chromaFilter" : "")
+            + (effectsEnabled && effectiveRenderer === "svg" && glowEnabled ? " glowFilter" : "")}>
             <OvenPlayerComponent
               key={sourceKey}
               onClicked={() => {}}
