@@ -613,6 +613,10 @@ export default function App() {
                       onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
                       triggerIcon={<PhotoFilter />}
                       triggerAriaLabel="Effecten aanpassen"
+                      // Matches the fullscreen/chromecast icons next to it:
+                      // those are Checkboxes, which default to
+                      // text.secondary, not IconButton's action.active.
+                      triggerSx={{color: 'text.secondary'}}
                     />
                     <Checkbox
                       onClick={() => toggleFullscreen()}
