@@ -19,7 +19,7 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import Stack from '@mui/material/Stack';
-import { AutoAwesome, Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
+import { Cast, Fullscreen, FullscreenExit, Help, KeyboardArrowDown, Logout, PhotoFilter, VolumeDown, VolumeOff, VolumeOffOutlined, VolumeUp } from '@mui/icons-material';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import tuinfeest from './tuinfeest.svg';
@@ -57,18 +57,6 @@ const DRAWER_CHIP_SX = {
   display: 'inline-flex',
   alignItems: 'center',
   bgcolor: 'action.hover',
-  borderRadius: '999px',
-  px: 1,
-};
-
-// Same pill shape as DRAWER_CHIP_SX, but a plain low-opacity white instead of
-// the theme's action.hover — the drawer chips sit on its own opaque dark
-// panel, but this one sits directly over arbitrary video content, where a
-// theme-relative tint wouldn't read consistently.
-const VIDEO_OVERLAY_CHIP_SX = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  bgcolor: 'rgba(255, 255, 255, 0.18)',
   borderRadius: '999px',
   px: 1,
 };
@@ -450,30 +438,28 @@ export default function App() {
             }}
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
           <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
-            <Box sx={VIDEO_OVERLAY_CHIP_SX}>
-              <DisplaySettings
-                webglEnabled={useWebglEnabled}
-                onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
-                webglSupport={webglSupport}
-                effectiveRenderer={effectiveRenderer}
-                effects={effectsState}
-                onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
-                preset={preset}
-                onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
-                onOpenChange={setEffectsPopoverOpen}
-                triggerIcon={<AutoAwesome sx={{fontSize: '2rem'}} />}
-                triggerAriaLabel="Effecten aanpassen"
-                triggerSx={{
-                  color: 'white',
-                  opacity: effectsEnabled ? 1 : 0.5,
-                  backgroundColor: 'transparent',
-                  padding: '0.75rem',
-                  '&:hover': {backgroundColor: 'rgba(128, 128, 128, 0.4)'},
-                }}
-                anchorOrigin={{vertical: 'top', horizontal: 'right'}}
-                transformOrigin={{vertical: 'bottom', horizontal: 'right'}}
-              />
-            </Box>
+            <DisplaySettings
+              webglEnabled={useWebglEnabled}
+              onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
+              webglSupport={webglSupport}
+              effectiveRenderer={effectiveRenderer}
+              effects={effectsState}
+              onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
+              preset={preset}
+              onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
+              onOpenChange={setEffectsPopoverOpen}
+              triggerIcon={<PhotoFilter sx={{fontSize: '2rem'}} />}
+              triggerAriaLabel="Effecten aanpassen"
+              triggerSx={{
+                color: 'white',
+                opacity: effectsEnabled ? 1 : 0.5,
+                backgroundColor: 'transparent',
+                padding: '0.75rem',
+                '&:hover': {backgroundColor: 'rgba(128, 128, 128, 0.4)'},
+              }}
+              anchorOrigin={{vertical: 'top', horizontal: 'right'}}
+              transformOrigin={{vertical: 'bottom', horizontal: 'right'}}
+            />
           </div>
           <div
             className="cast-overlay"
@@ -608,6 +594,11 @@ export default function App() {
                     } label="🚂" />
                   </Box> : <></>}
                   <Box sx={DRAWER_CHIP_SX}>
+                    <FormControlLabel sx={{mx: 0}} control={
+                      <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
+                    } label="📊" />
+                  </Box>
+                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <DisplaySettings
                       webglEnabled={useWebglEnabled}
                       onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
@@ -617,21 +608,14 @@ export default function App() {
                       onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
                       preset={preset}
                       onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
-                      triggerIcon={<AutoAwesome />}
+                      triggerIcon={<PhotoFilter />}
                       triggerAriaLabel="Effecten aanpassen"
                       triggerSx={{opacity: effectsEnabled ? 1 : 0.5}}
                     />
-                  </Box>
-                  <Box sx={DRAWER_CHIP_SX}>
-                    <FormControlLabel sx={{mx: 0}} control={
-                      <Checkbox checked={useStatsHud} onChange={(event, checked) => {setUseStatsHud(checked);}} />
-                    } label="📊" />
-                  </Box>
-                  <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
                     <Checkbox
                       onClick={() => toggleFullscreen()}
                       checked={!!window.document.fullscreenElement}
-                      icon={<Fullscreen />} 
+                      icon={<Fullscreen />}
                       checkedIcon={<FullscreenExit />}
                     />
                     <ChromecastButton />
