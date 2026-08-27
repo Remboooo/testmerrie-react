@@ -149,13 +149,22 @@ export default function App() {
   const [useWebglEnabled, setUseWebglEnabled] = usePersistedState<boolean>("webglEnabled", true, (v) => v !== "false");
   const [chromaEnabled, setChromaEnabled] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
   const [chromaAmount, setChromaAmount] = usePersistedState<number>("chromaAmount", 40, (v) => parseInt(v));
-  const [scanlinesEnabled, setScanlinesEnabled] = usePersistedState<boolean>("scanlinesFilter", false, (v) => v === "true");
+  // Pre-WebGL versions had one combined "crtFilter" toggle (glow blur +
+  // scanline overlay, no bulge — the old crt-sphere displacement filter was
+  // present but never actually enabled). It has no direct successor key, so
+  // a returning user's old CRT preference would otherwise be silently
+  // dropped — seed scanlines/glow's *initial* value from it. This only ever
+  // takes effect the first time (usePersistedState prefers its own key's
+  // already-stored value the moment either one exists), so it can't
+  // clobber a deliberate choice made under the new controls.
+  const legacyCrtFilter = localStorage.getItem("crtFilter") === "true";
+  const [scanlinesEnabled, setScanlinesEnabled] = usePersistedState<boolean>("scanlinesFilter", legacyCrtFilter, (v) => v === "true");
   const [scanlinesAmount, setScanlinesAmount] = usePersistedState<number>("scanlinesAmount", 50, (v) => parseInt(v));
   const [grainEnabled, setGrainEnabled] = usePersistedState<boolean>("grainFilter", false, (v) => v === "true");
   const [grainAmount, setGrainAmount] = usePersistedState<number>("grainAmount", 15, (v) => parseInt(v));
   const [bulgeEnabled, setBulgeEnabled] = usePersistedState<boolean>("crtBulgeFilter", false, (v) => v === "true");
   const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", 30, (v) => parseInt(v));
-  const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", false, (v) => v === "true");
+  const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", legacyCrtFilter, (v) => v === "true");
   const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", 30, (v) => parseInt(v));
   const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", "custom", (v) => (v === "off" || v === "cinematic" || v === "retro") ? v : "custom");
   // "off" *is* the effects master switch now, not a separate flag — a
