@@ -11,7 +11,7 @@ import { usePersistedState } from './usePersistedState';
 import StatsHud, { BufferInfo } from './StatsHud';
 import { useStreamManager } from './useStreamManager';
 import EffectsCanvas, { EffectsCanvasStatus } from './EffectsCanvas';
-import DisplaySettings, { EffectKey, EffectState } from './DisplaySettings';
+import DisplaySettings, { EffectKey, EffectState, PresetName } from './DisplaySettings';
 import { useWebglSupport } from './webgl/useWebglSupport';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
@@ -71,6 +71,27 @@ const VIDEO_OVERLAY_CHIP_SX = {
   bgcolor: 'rgba(255, 255, 255, 0.18)',
   borderRadius: '999px',
   px: 1,
+};
+
+// Full, deterministic effect states for the two named presets — selecting
+// one sets every effect (not just the ones it's "about"), so the result
+// never depends on whatever was previously set. "custom" isn't a state to
+// apply, just what gets recorded once any slider/checkbox is touched by hand.
+const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom'>, Record<EffectKey, EffectState>> = {
+  cinematic: {
+    chroma: { enabled: true, amount: 35 },
+    grain: { enabled: true, amount: 20 },
+    glow: { enabled: false, amount: 30 },
+    scanlines: { enabled: false, amount: 50 },
+    bulge: { enabled: false, amount: 30 },
+  },
+  retro: {
+    glow: { enabled: true, amount: 40 },
+    scanlines: { enabled: true, amount: 60 },
+    bulge: { enabled: true, amount: 35 },
+    chroma: { enabled: false, amount: 40 },
+    grain: { enabled: false, amount: 15 },
+  },
 };
 
 const QUALITY_OPTIONS: {value: QualityTier, label: string, description: string}[] = [
@@ -134,6 +155,7 @@ export default function App() {
   const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", 30, (v) => parseInt(v));
   const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", false, (v) => v === "true");
   const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", 30, (v) => parseInt(v));
+  const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", "custom", (v) => (v === "cinematic" || v === "retro") ? v : "custom");
   const [useStatsHud, setUseStatsHud] = usePersistedState<boolean>("statsHud", false, (v) => v === "true");
 
   const webglSupport = useWebglSupport();
@@ -158,6 +180,20 @@ export default function App() {
     const { setEnabled, setAmount } = EFFECT_SETTERS[key];
     if (patch.enabled !== undefined) setEnabled(patch.enabled);
     if (patch.amount !== undefined) setAmount(patch.amount);
+    // Any manual tweak detaches from whichever named preset was active —
+    // applying a preset itself goes through the setters directly below, not
+    // this function, so it doesn't immediately re-detach itself.
+    if (preset !== "custom") setPreset("custom");
+  };
+  const handlePresetChange = (name: PresetName) => {
+    setPreset(name);
+    if (name !== "custom") {
+      (Object.keys(PRESET_EFFECTS[name]) as EffectKey[]).forEach((key) => {
+        const { setEnabled, setAmount } = EFFECT_SETTERS[key];
+        setEnabled(PRESET_EFFECTS[name][key].enabled);
+        setAmount(PRESET_EFFECTS[name][key].amount);
+      });
+    }
   };
   // Live player telemetry for the stats HUD, held in refs so the frequent
   // buffer/quality updates don't re-render App; the HUD polls them at 1 Hz.
@@ -402,6 +438,8 @@ export default function App() {
                 effectiveRenderer={effectiveRenderer}
                 effects={effectsState}
                 onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
+                preset={preset}
+                onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
                 onOpenChange={setEffectsPopoverOpen}
                 triggerIcon={<AutoAwesome sx={{fontSize: '2rem'}} />}
                 triggerAriaLabel="Effecten aanpassen"
@@ -560,6 +598,8 @@ export default function App() {
                       effectiveRenderer={effectiveRenderer}
                       effects={effectsState}
                       onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
+                preset={preset}
+                onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
                     />
                   </Box>
                   <Box sx={DRAWER_CHIP_SX}>
