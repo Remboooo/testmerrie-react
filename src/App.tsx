@@ -451,10 +451,14 @@ export default function App() {
               triggerIcon={<PhotoFilter sx={{fontSize: '2.5rem'}} />}
               triggerAriaLabel="Effecten aanpassen"
               triggerSx={{
+                // One shape, not two: the backdrop lives directly on the
+                // (already circular) IconButton itself, and hover just
+                // deepens this same background — no separate wrapping pill
+                // for it to nest inside of.
                 color: 'white',
-                backgroundColor: 'transparent',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
                 padding: '0.75rem',
-                '&:hover': {backgroundColor: 'rgba(128, 128, 128, 0.4)'},
+                '&:hover': {backgroundColor: 'rgba(255, 255, 255, 0.3)'},
               }}
               anchorOrigin={{vertical: 'top', horizontal: 'right'}}
               transformOrigin={{vertical: 'bottom', horizontal: 'right'}}
