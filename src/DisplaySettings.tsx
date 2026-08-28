@@ -28,11 +28,11 @@ const EFFECT_CONFIG: {
   checkboxNeedsWebgl: boolean;
   sliderNeedsWebgl: boolean;
 }[] = [
-  { key: 'chroma', label: 'Chromatic Aberration', icon: '🎨', checkboxNeedsWebgl: false, sliderNeedsWebgl: true },
+  { key: 'chroma', label: 'Chromatic aberration', icon: '🎨', checkboxNeedsWebgl: false, sliderNeedsWebgl: true },
   { key: 'glow', label: 'Blur', icon: '☁️', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
   { key: 'scanlines', label: 'Scanlines', icon: '📺', checkboxNeedsWebgl: false, sliderNeedsWebgl: false },
-  { key: 'grain', label: 'Film Grain', icon: '🎞️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
-  { key: 'bulge', label: 'CRT Bulge', icon: '🌐', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
+  { key: 'grain', label: 'Film grain', icon: '🎞️', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
+  { key: 'bulge', label: 'CRT bulge', icon: '🌐', checkboxNeedsWebgl: true, sliderNeedsWebgl: true },
 ];
 
 const PRESET_OPTIONS: { key: PresetName; emoji: string; label: string }[] = [

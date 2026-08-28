@@ -70,16 +70,16 @@ const DRAWER_CHIP_SX = {
 // switching away from it restores exactly what was set before.
 const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom' | 'off'>, Record<EffectKey, EffectState>> = {
   cinematic: {
-    chroma: { enabled: true, amount: 35 },
+    chroma: { enabled: true, amount: 15 },
     grain: { enabled: true, amount: 50 },
     glow: { enabled: false, amount: 30 },
     scanlines: { enabled: false, amount: 50 },
     bulge: { enabled: false, amount: 30 },
   },
   retro: {
-    glow: { enabled: true, amount: 40 },
-    scanlines: { enabled: true, amount: 60 },
-    bulge: { enabled: true, amount: 35 },
+    glow: { enabled: true, amount: 30 },
+    scanlines: { enabled: true, amount: 20 },
+    bulge: { enabled: true, amount: 10 },
     chroma: { enabled: false, amount: 40 },
     grain: { enabled: false, amount: 15 },
   },
