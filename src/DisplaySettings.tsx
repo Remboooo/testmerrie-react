@@ -196,9 +196,14 @@ const DisplaySettings = forwardRef<DisplaySettingsHandle, DisplaySettingsProps>(
 
           {EFFECT_CONFIG.map(({ key, label, icon, checkboxNeedsWebgl, sliderNeedsWebgl }) => {
             const state = effects[key];
-            const checkboxDisabled = checkboxNeedsWebgl && effectiveRenderer !== 'webgl';
+            // With the preset off, these controls doing nothing (effectsEnabled
+            // gates rendering entirely) while still looking interactive was
+            // confusing — disable them, and touching one no longer silently
+            // flips the preset to "custom" out from under the "off" choice.
+            const presetOff = preset === 'off';
+            const checkboxDisabled = presetOff || (checkboxNeedsWebgl && effectiveRenderer !== 'webgl');
             const sliderDisabled = checkboxDisabled || (sliderNeedsWebgl && effectiveRenderer !== 'webgl') || !state.enabled;
-            const reason = checkboxDisabled ? 'Requires WebGL' : '';
+            const reason = presetOff ? 'Preset is off' : checkboxDisabled ? 'Requires WebGL' : '';
             return (
               <Box key={key} sx={{ mb: 1 }}>
                 <Tooltip title={reason} disableHoverListener={!reason}>
