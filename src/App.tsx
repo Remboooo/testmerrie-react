@@ -8,6 +8,7 @@ import { useSnackbar } from 'notistack';
 import { AvailableStreamUpdate, NO_SELECTION, QualityTier, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
+import { volumeToGain } from './VolumeUtil';
 import StatsHud, { BufferInfo } from './StatsHud';
 import { useStreamManager } from './useStreamManager';
 import EffectsCanvas, { EffectsCanvasStatus } from './EffectsCanvas';
@@ -128,6 +129,10 @@ export default function App() {
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
   const [muted, setMuted] = usePersistedState<boolean>("muted", false, (v) => v === "true");
   const [volume, setVolume] = usePersistedState<number>("volume", 100, (v) => parseInt(v));
+  // Backwards compat: before idle/main had separate volumes, idle played at
+  // BACKGROUND_AUDIO_RATIO of the (only) "volume" setting — seed the new
+  // "idleVolume" key from that so existing users keep their current idle level.
+  const [idleVolume, setIdleVolume] = usePersistedState<number>("idleVolume", Math.round(BACKGROUND_AUDIO_RATIO * volume), (v) => parseInt(v));
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const { manager: streamManager, availableStreams, selectedStream, endedSelection, qualityTier, autoStart } = useStreamManager(authenticated);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
@@ -290,7 +295,7 @@ export default function App() {
         console.log("audio playing is blocked");
       });
     }
-  }, [volume, muted, selectedStream, setCanPlayAudio, canPlayAudio, clickCount]);
+  }, [volume, idleVolume, muted, selectedStream, setCanPlayAudio, canPlayAudio, clickCount]);
 
   useEffect(() => {setImmediate(() => {setDrawerOpen(true);});}, []);
 
@@ -386,7 +391,7 @@ export default function App() {
   }, [selectedStream]);
 
   let effectivelyMuted = muted || !canPlayAudio;
-  let effectiveVolume = sourcesList.isPlaceholder ? BACKGROUND_AUDIO_RATIO * volume : volume;
+  let effectiveVolume = volumeToGain(sourcesList.isPlaceholder ? idleVolume : volume);
 
   return (
     <div className={"App " + (retrying ? "loading" : playerState) + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
@@ -582,7 +587,7 @@ export default function App() {
                       checkedIcon={<VolumeOff />}
                     />
                     <VolumeDown />
-                    <Slider sx={{width: '10em', color: (effectivelyMuted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={volume} onClick={() => {setMuted(false); setClickCount(clickCount+1);}} onChange={(event, newValue) => {setVolume(newValue as number); setMuted(false); setClickCount(clickCount+1);}} />
+                    <Slider sx={{width: '10em', color: (effectivelyMuted ? 'grey.400' : 'primary.main')}} aria-label="Volume" value={sourcesList.isPlaceholder ? idleVolume : volume} onClick={() => {setMuted(false); setClickCount(clickCount+1);}} onChange={(event, newValue) => {(sourcesList.isPlaceholder ? setIdleVolume : setVolume)(newValue as number); setMuted(false); setClickCount(clickCount+1);}} />
                     <VolumeUp />
                   </Stack>
                   <Stack spacing={2} direction="row" sx={{ padding: 2, display: 'inline-flex', alignItems: 'center' }}>
