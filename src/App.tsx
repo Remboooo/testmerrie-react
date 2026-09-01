@@ -129,7 +129,7 @@ export default function App() {
   const [muted, setMuted] = usePersistedState<boolean>("muted", false, (v) => v === "true");
   const [volume, setVolume] = usePersistedState<number>("volume", 100, (v) => parseInt(v));
   const [authenticated, setAuthenticated] = useState<boolean>(false);
-  const { manager: streamManager, availableStreams, selectedStream, endedSelection, qualityTier } = useStreamManager(authenticated);
+  const { manager: streamManager, availableStreams, selectedStream, endedSelection, qualityTier, autoStart } = useStreamManager(authenticated);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
@@ -529,7 +529,7 @@ export default function App() {
                 />
                 {selectedStream === null ? <FormGroup sx={{margin: "0 1em"}}>
                   <FormControlLabel control={
-                    <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
+                    <Checkbox checked={autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
                   } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
                 </FormGroup> : <></>}
               </Box>

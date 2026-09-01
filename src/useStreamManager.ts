@@ -15,6 +15,7 @@ export function useStreamManager(authenticated: boolean): {
   selectedStream: StreamSelection;
   endedSelection: StreamSelection;
   qualityTier: QualityTier;
+  autoStart: boolean;
 } {
   const [manager, setManager] = useState<StreamManager | undefined>();
 
@@ -32,6 +33,7 @@ export function useStreamManager(authenticated: boolean): {
   const selectedStream = useSyncExternalStore(subscribe, () => manager?.getSelectedStream() ?? null);
   const endedSelection = useSyncExternalStore(subscribe, () => manager?.getEndedSelection() ?? null);
   const qualityTier = useSyncExternalStore(subscribe, () => manager?.qualityTier ?? DEFAULT_QUALITY_TIER);
+  const autoStart = useSyncExternalStore(subscribe, () => manager?.autoStart ?? false);
 
-  return { manager, availableStreams, selectedStream, endedSelection, qualityTier };
+  return { manager, availableStreams, selectedStream, endedSelection, qualityTier, autoStart };
 }

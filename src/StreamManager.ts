@@ -113,10 +113,17 @@ export class StreamManager {
     getEndedSelection(): StreamSelection {
         return this.endedSelection;
     }
-    // This will not work because of autoplay restrictions:
-    // WebRTC.js:107 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
-    // private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
-    private _autoStart: boolean = false;
+    // Persisted intent: "auto-pick a stream for me whenever nothing is selected".
+    // Playback already starts muted until a click unlocks audio (see App's
+    // canPlayAudio/clickCount), the same as any manually-picked stream, so
+    // there's no autoplay-restriction problem in auto-selecting on page load.
+    private _autoStart: boolean = localStorage.getItem('autoStart') === '1';
+    // One-shot per StreamManager instance (i.e. per page load): once autoStart
+    // has picked a stream, don't keep re-forcing it back on if the user
+    // manually deselects. The persisted `_autoStart` preference itself is left
+    // alone, so a fresh page load auto-selects again; re-enabling the checkbox
+    // by hand also re-arms it (see the setter).
+    private autoStartConsumed: boolean = false;
     private _qualityTier: QualityTier = readQualityTier();
     
     private updateStreamsOnce() {
@@ -138,7 +145,7 @@ export class StreamManager {
     }
 
     checkAutoStart() {
-        if (this._autoStart) {
+        if (this._autoStart && !this.autoStartConsumed) {
             const streamEntries = Object.entries(this.availableStreams);
             if (this.selectedStream === null && streamEntries.length > 0) {
                 const [streamKey, streamDef] = streamEntries[0];
@@ -147,10 +154,8 @@ export class StreamManager {
                     const preferred = readProtocolPreference();
                     const protocol = preferred in streamDef.streams[quality] ? preferred : DEFAULT_PROTOCOL;
                     this.selectedStream = {key: streamKey, stream: streamDef, protocol, quality};
-                    // One-shot: "just give me a stream" shouldn't keep re-forcing a
-                    // stream back on after the user manually turns it off again.
-                    // (setter notifies.)
-                    this.autoStart = false;
+                    this.autoStartConsumed = true;
+                    this.notify();
                 }
             }
         }
@@ -245,11 +250,9 @@ export class StreamManager {
         localStorage.setItem('autoStart', newVal ? '1' : '0');
         this._autoStart = newVal;
         if (newVal) {
+            this.autoStartConsumed = false;
             this.checkAutoStart();
         }
-        // App reads `autoStart` directly (it isn't its own useSyncExternalStore
-        // snapshot), so without this the checkbox only visually updates when
-        // checkAutoStart() happens to also change the selection.
         this.notify();
     }
 

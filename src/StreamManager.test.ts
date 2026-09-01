@@ -218,4 +218,32 @@ describe('autostart + availability', () => {
     sm.autoStart = true;
     expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'webrtc-udp' });
   });
+
+  it('autoStart preference persists to a fresh instance (e.g. a page reload) and re-selects', () => {
+    const sm1 = setup();
+    sm1.autoStart = true;
+    const sm2 = setup();
+    expect(sm2.autoStart).toBe(true);
+    sm2.checkAutoStart();
+    expect(sm2.getSelectedStream()).toMatchObject({ key: 'bam/rem' });
+  });
+
+  it("doesn't re-select after a manual deselect within the same instance", () => {
+    const sm = setup();
+    sm.autoStart = true;
+    expect(sm.getSelectedStream()).not.toBeNull();
+    sm.requestStreamSelection(NO_SELECTION);
+    sm.checkAutoStart();
+    expect(sm.getSelectedStream()).toBeNull();
+    expect(sm.autoStart).toBe(true); // preference itself stays on
+  });
+
+  it('manually re-enabling autoStart after a deselect re-arms it', () => {
+    const sm = setup();
+    sm.autoStart = true;
+    sm.requestStreamSelection(NO_SELECTION);
+    sm.autoStart = false;
+    sm.autoStart = true;
+    expect(sm.getSelectedStream()).not.toBeNull();
+  });
 });
