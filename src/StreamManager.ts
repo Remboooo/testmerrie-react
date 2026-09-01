@@ -147,7 +147,10 @@ export class StreamManager {
                     const preferred = readProtocolPreference();
                     const protocol = preferred in streamDef.streams[quality] ? preferred : DEFAULT_PROTOCOL;
                     this.selectedStream = {key: streamKey, stream: streamDef, protocol, quality};
-                    this.notify();
+                    // One-shot: "just give me a stream" shouldn't keep re-forcing a
+                    // stream back on after the user manually turns it off again.
+                    // (setter notifies.)
+                    this.autoStart = false;
                 }
             }
         }
@@ -244,6 +247,10 @@ export class StreamManager {
         if (newVal) {
             this.checkAutoStart();
         }
+        // App reads `autoStart` directly (it isn't its own useSyncExternalStore
+        // snapshot), so without this the checkbox only visually updates when
+        // checkAutoStart() happens to also change the selection.
+        this.notify();
     }
 
     get qualityTier(): QualityTier {

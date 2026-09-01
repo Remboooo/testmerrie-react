@@ -527,7 +527,7 @@ export default function App() {
                   currentStream={selectedStream}
                   endedStream={endedSelection}
                 />
-                {!availableStreams.streamMap || Object.entries(availableStreams.streamMap).length == 0 ? <FormGroup sx={{margin: "0 1em"}}>
+                {selectedStream === null ? <FormGroup sx={{margin: "0 1em"}}>
                   <FormControlLabel control={
                     <Checkbox checked={!!streamManager?.autoStart} onChange={() => {if (streamManager) {streamManager.autoStart = !streamManager.autoStart;}}} />
                   } label="Doe maar een streampie. Als er iemand iets aanslingert ben ik er als de 🐔🐔 🐝" />
