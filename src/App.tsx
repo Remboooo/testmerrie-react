@@ -626,6 +626,14 @@ export default function App() {
                         // dismissed; if it's forced open (no stream, casting, error) there's
                         // no corner button to reveal, so fall back to opening in place.
                         if (userNeedsDrawer) return;
+                        // Also clear the drawer-opener hover state (and its pending
+                        // timeout) — otherwise the drawer-sync effect below sees
+                        // mouseActiveOnDrawerOpener still true (from hovering the top
+                        // strip that opened the drawer) and flips drawerOpen back to
+                        // true right after this, hiding the corner button until that
+                        // timeout separately expires.
+                        clearMouseOnVideoTimeout();
+                        setMouseActiveOnDrawerOpener(false);
                         setMouseOnDrawer(false);
                         setDrawerOpen(false);
                         setEffectsPopoverOpen(true);
