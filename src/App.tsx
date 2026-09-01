@@ -135,26 +135,43 @@ export default function App() {
   const [reloadNonce, setReloadNonce] = useState<number>(0);
   const [usePlaceholderVideo, setUsePlaceholderVideo] = usePersistedState<boolean>("placeholderVideo", true, (v) => v !== "false");
   const [useWebglEnabled, setUseWebglEnabled] = usePersistedState<boolean>("webglEnabled", true, (v) => v !== "false");
-  const [chromaEnabled, setChromaEnabled] = usePersistedState<boolean>("chromaFilter", false, (v) => v === "true");
-  const [chromaAmount, setChromaAmount] = usePersistedState<number>("chromaAmount", 40, (v) => parseInt(v));
-  // Pre-WebGL versions had one combined "crtFilter" toggle (glow blur +
-  // scanline overlay, no bulge — the old crt-sphere displacement filter was
-  // present but never actually enabled). It has no direct successor key, so
-  // a returning user's old CRT preference would otherwise be silently
-  // dropped — seed scanlines/glow's *initial* value from it. This only ever
-  // takes effect the first time (usePersistedState prefers its own key's
-  // already-stored value the moment either one exists), so it can't
-  // clobber a deliberate choice made under the new controls.
+  // The old SVG-only version had just two toggles: "chromaFilter" (reused
+  // unchanged below) and "crtFilter" (a combined glow blur + scanline
+  // overlay, no bulge — the old crt-sphere displacement filter was present
+  // but never actually enabled). Figure out which of today's two presets a
+  // returning user's old combination resembles *before* seeding any
+  // individual effect key below, so every key can seed straight from that
+  // preset's canonical amounts — leaving them on ad-hoc per-key defaults is
+  // what used to land them on "custom" with a mix that matched neither
+  // preset's exact state. Crt-on skews "retro" even with chroma also on (2
+  // of retro's 3 relevant attributes match vs. 1 for cinematic); chroma-only
+  // skews "cinematic"; neither-on maps to "off" rather than forcing an
+  // effect they never chose. This only ever matters on a user's very first
+  // load after upgrading — every key below prefers its own already-stored
+  // value the moment it exists, "effectsPreset" included.
+  const legacyChromaFilter = localStorage.getItem("chromaFilter") === "true";
   const legacyCrtFilter = localStorage.getItem("crtFilter") === "true";
-  const [scanlinesEnabled, setScanlinesEnabled] = usePersistedState<boolean>("scanlinesFilter", legacyCrtFilter, (v) => v === "true");
-  const [scanlinesAmount, setScanlinesAmount] = usePersistedState<number>("scanlinesAmount", 50, (v) => parseInt(v));
-  const [grainEnabled, setGrainEnabled] = usePersistedState<boolean>("grainFilter", false, (v) => v === "true");
-  const [grainAmount, setGrainAmount] = usePersistedState<number>("grainAmount", 15, (v) => parseInt(v));
-  const [bulgeEnabled, setBulgeEnabled] = usePersistedState<boolean>("crtBulgeFilter", false, (v) => v === "true");
-  const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", 30, (v) => parseInt(v));
-  const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", legacyCrtFilter, (v) => v === "true");
-  const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", 30, (v) => parseInt(v));
-  const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", "custom", (v) => (v === "off" || v === "cinematic" || v === "retro") ? v : "custom");
+  const hadLegacyEffectsKeys = localStorage.getItem("chromaFilter") !== null || localStorage.getItem("crtFilter") !== null;
+  const legacyPresetSeed: PresetName = !hadLegacyEffectsKeys
+    ? "custom"
+    : legacyCrtFilter
+      ? "retro"
+      : legacyChromaFilter
+        ? "cinematic"
+        : "off";
+  const legacyPresetEffects = legacyPresetSeed === "retro" || legacyPresetSeed === "cinematic" ? PRESET_EFFECTS[legacyPresetSeed] : null;
+
+  const [chromaEnabled, setChromaEnabled] = usePersistedState<boolean>("chromaFilter", legacyPresetEffects?.chroma.enabled ?? false, (v) => v === "true");
+  const [chromaAmount, setChromaAmount] = usePersistedState<number>("chromaAmount", legacyPresetEffects?.chroma.amount ?? 40, (v) => parseInt(v));
+  const [scanlinesEnabled, setScanlinesEnabled] = usePersistedState<boolean>("scanlinesFilter", legacyPresetEffects?.scanlines.enabled ?? legacyCrtFilter, (v) => v === "true");
+  const [scanlinesAmount, setScanlinesAmount] = usePersistedState<number>("scanlinesAmount", legacyPresetEffects?.scanlines.amount ?? 50, (v) => parseInt(v));
+  const [grainEnabled, setGrainEnabled] = usePersistedState<boolean>("grainFilter", legacyPresetEffects?.grain.enabled ?? false, (v) => v === "true");
+  const [grainAmount, setGrainAmount] = usePersistedState<number>("grainAmount", legacyPresetEffects?.grain.amount ?? 15, (v) => parseInt(v));
+  const [bulgeEnabled, setBulgeEnabled] = usePersistedState<boolean>("crtBulgeFilter", legacyPresetEffects?.bulge.enabled ?? false, (v) => v === "true");
+  const [bulgeAmount, setBulgeAmount] = usePersistedState<number>("crtBulgeAmount", legacyPresetEffects?.bulge.amount ?? 30, (v) => parseInt(v));
+  const [glowEnabled, setGlowEnabled] = usePersistedState<boolean>("glowFilter", legacyPresetEffects?.glow.enabled ?? legacyCrtFilter, (v) => v === "true");
+  const [glowAmount, setGlowAmount] = usePersistedState<number>("glowAmount", legacyPresetEffects?.glow.amount ?? 30, (v) => parseInt(v));
+  const [preset, setPreset] = usePersistedState<PresetName>("effectsPreset", legacyPresetSeed, (v) => (v === "off" || v === "cinematic" || v === "retro") ? v : "custom");
   // "off" *is* the effects master switch now, not a separate flag — a
   // preset like any other, just one that doesn't touch individual effect
   // settings, so switching away from it restores exactly what was set
