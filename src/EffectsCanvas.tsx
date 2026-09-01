@@ -318,6 +318,13 @@ export default function EffectsCanvas({ active, playing, cover, effects, amounts
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+      // Otherwise the last rendered frame just sits there — visible, since
+      // the video element itself is hidden while WebGL is active (App.css)
+      // — for as long as nothing plays: no stream selected, idle stream off,
+      // or mid-switch while the new source spins back up.
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
     };
     // effects/amounts intentionally excluded: read live via refs above so a
     // toggle/slider change doesn't tear down and restart the rAF loop.
