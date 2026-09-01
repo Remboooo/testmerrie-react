@@ -229,6 +229,18 @@ export default function App() {
     return idleSelection;
   }, [selectedStream, idleSelection, usePlaceholderVideo]);
 
+  // What to show in the stats HUD: the selected stream, or the idle loop when
+  // nothing is selected (and it's actually being played) — mirrors chromecastStream.
+  const hudSelection: StreamSelection = useMemo(() => {
+    if (selectedStream !== null) {
+      return selectedStream;
+    }
+    if (idleSelection === null || !usePlaceholderVideo) {
+      return null;
+    }
+    return idleSelection;
+  }, [selectedStream, idleSelection, usePlaceholderVideo]);
+
   const [logout, setLogout] = useState<() => void>();
 
   const mouseOnDrawerOpenerTimeout = useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
@@ -482,10 +494,10 @@ export default function App() {
             Er gaat iets niet goed 😞<br />
             Probeer het nog eens?
           </div>
-          {useStatsHud && selectedStream && (
+          {useStatsHud && hudSelection && (
             <StatsHud
               playerState={playerState}
-              selection={selectedStream}
+              selection={hudSelection}
               qualityTier={qualityTier}
               liveQualityRef={liveQualityRef}
               bufferRef={bufferRef}
