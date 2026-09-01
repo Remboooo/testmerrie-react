@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import Checkbox from '@mui/material/Checkbox';
@@ -108,9 +108,20 @@ export type DisplaySettingsProps = {
   // visible for the duration (the video-corner button shouldn't slide away
   // on mouse-idle while its own popover is still open and being adjusted).
   onOpenChange?: (open: boolean) => void;
+  // Called when the trigger is clicked, before the popover would open.
+  // Returning `false` redirects the click elsewhere (e.g. the drawer's copy
+  // redirects to the video-corner one, to teach where it lives) and
+  // suppresses this instance's own popover for that click.
+  onTriggerClick?: () => boolean | void;
 };
 
-export default function DisplaySettings({
+export type DisplaySettingsHandle = {
+  // Opens the popover anchored on this instance's own trigger button, as if
+  // it had been clicked directly.
+  open: () => void;
+};
+
+const DisplaySettings = forwardRef<DisplaySettingsHandle, DisplaySettingsProps>(function DisplaySettings({
   webglEnabled,
   onWebglEnabledChange,
   webglSupport,
@@ -125,8 +136,14 @@ export default function DisplaySettings({
   anchorOrigin,
   transformOrigin,
   onOpenChange,
-}: DisplaySettingsProps) {
+  onTriggerClick,
+}, ref) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    open: () => {setAnchorEl(buttonRef.current); onOpenChange?.(true);},
+  }));
 
   const webglToggleDisabled = webglSupport !== 'available';
   const webglTooltip = webglSupport === 'unavailable'
@@ -138,7 +155,11 @@ export default function DisplaySettings({
   return (
     <>
       <IconButton
-        onClick={(event) => {setAnchorEl(event.currentTarget); onOpenChange?.(true);}}
+        ref={buttonRef}
+        onClick={(event) => {
+          if (onTriggerClick?.() === false) return;
+          setAnchorEl(event.currentTarget); onOpenChange?.(true);
+        }}
         aria-label={triggerAriaLabel ?? 'Effectinstellingen'}
         sx={triggerSx}
       >
@@ -210,4 +231,6 @@ export default function DisplaySettings({
       </Menu>
     </>
   );
-}
+});
+
+export default DisplaySettings;

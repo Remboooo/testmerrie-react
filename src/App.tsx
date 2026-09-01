@@ -11,7 +11,7 @@ import { usePersistedState } from './usePersistedState';
 import StatsHud, { BufferInfo } from './StatsHud';
 import { useStreamManager } from './useStreamManager';
 import EffectsCanvas, { EffectsCanvasStatus } from './EffectsCanvas';
-import DisplaySettings, { EffectKey, EffectState, PresetName } from './DisplaySettings';
+import DisplaySettings, { DisplaySettingsHandle, EffectKey, EffectState, PresetName } from './DisplaySettings';
 import { useWebglSupport } from './webgl/useWebglSupport';
 import Drawer from '@mui/material/Drawer';
 import Box from '@mui/material/Box';
@@ -205,6 +205,7 @@ export default function App() {
   const bufferRef = useRef<BufferInfo | null>(null);
   const hlsRef = useRef<any>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const cornerDisplaySettingsRef = useRef<DisplaySettingsHandle>(null);
   useEffect(() => { liveQualityRef.current = null; bufferRef.current = null; pcRef.current = null; }, [selectedStream]);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
@@ -439,6 +440,7 @@ export default function App() {
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
           <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
             <DisplaySettings
+              ref={cornerDisplaySettingsRef}
               webglEnabled={useWebglEnabled}
               onWebglEnabledChange={(v) => {setClickCount(clickCount+1); setUseWebglEnabled(v);}}
               webglSupport={webglSupport}
@@ -499,7 +501,14 @@ export default function App() {
             className="drawer"
             open={drawerOpen}
             onClose={(event, reason) => {setMouseOnDrawer(false); if (reason === 'backdropClick' && !userNeedsDrawer) setDrawerOpen(false);}}
-            onClick={(event) => {if (event.detail == 2) toggleFullscreen();}}
+            onClick={(event) => {
+              // Only the transparent backdrop should fullscreen on double-click;
+              // clicks bubble up from drawer content (e.g. rapidly toggling a
+              // checkbox), so exclude anything inside the drawer's Paper.
+              if (event.detail == 2 && !(event.target as HTMLElement).closest('.MuiDrawer-paper')) {
+                toggleFullscreen();
+              }
+            }}
             anchor="top"
           >
             <Box
@@ -611,6 +620,21 @@ export default function App() {
                       onEffectChange={(key, patch) => {setClickCount(clickCount+1); handleEffectChange(key, patch);}}
                       preset={preset}
                       onPresetChange={(name) => {setClickCount(clickCount+1); handlePresetChange(name);}}
+                      onTriggerClick={() => {
+                        // Redirect to the video-corner button instead of opening here, to
+                        // teach where it lives — but only when the drawer can actually be
+                        // dismissed; if it's forced open (no stream, casting, error) there's
+                        // no corner button to reveal, so fall back to opening in place.
+                        if (userNeedsDrawer) return;
+                        setMouseOnDrawer(false);
+                        setDrawerOpen(false);
+                        setEffectsPopoverOpen(true);
+                        // Wait out the corner button's slide-in transition (App.css,
+                        // .effects-quick-button: 250ms) so the popover anchors where the
+                        // button actually is, not where it started off-screen.
+                        setTimeout(() => cornerDisplaySettingsRef.current?.open(), 260);
+                        return false;
+                      }}
                       triggerIcon={<PhotoFilter />}
                       triggerAriaLabel="Effecten aanpassen"
                       // Matches the fullscreen/chromecast icons next to it:
