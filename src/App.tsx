@@ -228,6 +228,13 @@ export default function App() {
   const hlsRef = useRef<any>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const cornerDisplaySettingsRef = useRef<DisplaySettingsHandle>(null);
+  // Set by the drawer-effects redirect while waiting for the corner button's
+  // slide-in transition to finish (see the button's onTransitionEnd below) —
+  // a fixed setTimeout guess raced the CSS transition closely enough that
+  // Popover's anchor-tracking (it repositions on every render while open)
+  // would catch the button mid-slide and jump/restart the Menu's grow
+  // animation once the button reached its final spot.
+  const pendingCornerOpenRef = useRef<boolean>(false);
   useEffect(() => { liveQualityRef.current = null; bufferRef.current = null; pcRef.current = null; }, [selectedStream]);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
@@ -276,6 +283,14 @@ export default function App() {
   // video — otherwise the button (and the open popover anchored to it)
   // would slide away mid-adjustment.
   const [effectsPopoverOpen, setEffectsPopoverOpen] = useState<boolean>(false);
+  // True for the brief window between clicking the drawer's effects trigger
+  // and the corner popover actually opening (see onTriggerClick below).
+  // Overrides drawerOpen for the corner button's visibility and suppresses
+  // the drawer from reopening — a stray hover over the top strip or the
+  // video during that handoff would otherwise interrupt the corner button's
+  // slide-in transition partway (hiding it, then restarting it once the
+  // drawer closed again), which reads as the whole thing stuttering/glitching.
+  const [redirectHandoffActive, setRedirectHandoffActive] = useState<boolean>(false);
 
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
@@ -340,11 +355,15 @@ export default function App() {
   }, [mouseMovingTimeout]);
   
   let mouseDrawerOpenerAction = useCallback(() => {
+    // Don't let a stray hover over the top strip reopen the drawer mid-handoff
+    // (see redirectHandoffActive) — it would yank the corner button's
+    // slide-in transition back to square one.
+    if (redirectHandoffActive) return;
     clearMouseOnVideoTimeout();
     setMouseActiveOnDrawerOpener(true);
     setDrawerOpen(true);
     mouseOnDrawerOpenerTimeout.current = setTimeout(() => setMouseActiveOnDrawerOpener(false), MOUSE_ON_VIDEO_TIMEOUT);
-  }, [clearMouseOnVideoTimeout, mouseOnDrawerOpenerTimeout]);
+  }, [clearMouseOnVideoTimeout, mouseOnDrawerOpenerTimeout, redirectHandoffActive]);
 
   let openDrawerWithoutTimeout = useCallback(() => {
     clearMouseOnVideoTimeout();
@@ -358,8 +377,12 @@ export default function App() {
   const userNeedsDrawer = (!sourcesList.sources.length) || ccConnected || (!retrying && playerState === "error");
 
   useEffect(() => {
-    setDrawerOpen(userWantsDrawer || userNeedsDrawer);
-  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState, retrying])
+    // userNeedsDrawer (a real forced-open condition, e.g. a playback error)
+    // still wins over the handoff; userWantsDrawer (mouse-hover-driven) does
+    // not, so a stray hover during the redirect handoff can't reopen the
+    // drawer out from under it.
+    setDrawerOpen((userWantsDrawer && !redirectHandoffActive) || userNeedsDrawer);
+  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState, retrying, redirectHandoffActive])
 
   /* Fullscreen toggle logic */
 
@@ -472,7 +495,16 @@ export default function App() {
               }
             }}
           ><KeyboardArrowDown sx={{ fontSize: "3rem" }} /></div>
-          <div className={"effects-quick-button" + ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen ? " mousing" : "")}>
+          <div
+            className={"effects-quick-button" + (redirectHandoffActive || ((mouseVisibleOnVideo || effectsPopoverOpen) && !drawerOpen) ? " mousing" : "")}
+            onTransitionEnd={(event) => {
+              if (event.propertyName === "bottom" && pendingCornerOpenRef.current) {
+                pendingCornerOpenRef.current = false;
+                setRedirectHandoffActive(false);
+                cornerDisplaySettingsRef.current?.open();
+              }
+            }}
+          >
             <DisplaySettings
               ref={cornerDisplaySettingsRef}
               webglEnabled={useWebglEnabled}
@@ -671,10 +703,31 @@ export default function App() {
                         setMouseOnDrawer(false);
                         setDrawerOpen(false);
                         setEffectsPopoverOpen(true);
-                        // Wait out the corner button's slide-in transition (App.css,
-                        // .effects-quick-button: 250ms) so the popover anchors where the
-                        // button actually is, not where it started off-screen.
-                        setTimeout(() => cornerDisplaySettingsRef.current?.open(), 260);
+                        // Force the corner button visible/stable and the drawer
+                        // shut for the duration of the handoff — otherwise a
+                        // stray hover over the top strip or the video mid-slide
+                        // can reopen the drawer or flicker the button's own
+                        // "mousing" class, interrupting its CSS transition
+                        // partway and restarting it once things settle. See
+                        // redirectHandoffActive's declaration for the full story.
+                        setRedirectHandoffActive(true);
+                        // The button is always hidden right up to this point (its
+                        // "mousing" class is gated on !drawerOpen, and the drawer was
+                        // just open), so it always has the slide-in transition ahead
+                        // of it here — wait for it to actually finish (see the
+                        // button's onTransitionEnd below) so the popover anchors
+                        // where the button ends up, not its stale off-screen start.
+                        pendingCornerOpenRef.current = true;
+                        // Safety net in case the transition never fires (e.g.
+                        // prefers-reduced-motion suppressing it) — otherwise the
+                        // popover would never open.
+                        setTimeout(() => {
+                          if (pendingCornerOpenRef.current) {
+                            pendingCornerOpenRef.current = false;
+                            setRedirectHandoffActive(false);
+                            cornerDisplaySettingsRef.current?.open();
+                          }
+                        }, 500);
                         return false;
                       }}
                       triggerIcon={<PhotoFilter />}
