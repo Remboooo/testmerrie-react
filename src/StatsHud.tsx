@@ -42,11 +42,11 @@ export type StatsHudProps = {
 // spotting "user wanted WebGL but it silently fell back" at a glance.
 function rendererLabel(effectsEnabled: boolean, webglEnabled: boolean, webglSupport: WebglSupport, effectiveRenderer: 'webgl' | 'svg'): string {
     if (!effectsEnabled) return 'Uit';
-    if (effectiveRenderer === 'webgl') return 'WebGL';
-    if (!webglEnabled) return 'SVG (uitgeschakeld)';
-    if (webglSupport === 'unavailable') return 'SVG (WebGL niet ondersteund)';
-    if (webglSupport === 'checking') return 'SVG (WebGL wordt gecontroleerd…)';
-    return 'SVG (WebGL-context verloren)';
+    if (effectiveRenderer === 'webgl') return 'WebGL pixel shaders';
+    if (!webglEnabled) return 'SVG-filters / CSS-effecten';
+    if (webglSupport === 'unavailable') return 'SVG-filters / CSS-effecten (WebGL niet ondersteund)';
+    if (webglSupport === 'checking') return 'SVG-filters / CSS-effecten (WebGL wordt gecontroleerd…)';
+    return 'SVG-filters / CSS-effecten (WebGL-context verloren)';
 }
 
 type WebrtcLive = { width?: number; height?: number; bitrate?: number; fps?: number; avail?: number };
@@ -156,7 +156,7 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
             <div className="stats-col">
                 <div className="stats-heading">Nu</div>
                 <Row label="Status" value={STATE_LABELS[playerState] ?? playerState} />
-                <Row label="Weergave" value={rendererLabel(effectsEnabled, webglEnabled, webglSupport, effectiveRenderer)} />
+                <Row label="Effecten" value={rendererLabel(effectsEnabled, webglEnabled, webglSupport, effectiveRenderer)} />
                 <Row label="Protocol" value={selection?.protocol} />
                 <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${qualityResolved ?? "—"}`} />
                 <Row label="Rendition" value={renditionStr} />
