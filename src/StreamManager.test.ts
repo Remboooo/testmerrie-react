@@ -74,6 +74,9 @@ describe('resolveQualityTier', () => {
 
 describe('resolveIdleSelection', () => {
   const idle = (streams: StreamQualityMap): StreamSpec => ({ name: 'idle', streams });
+  // Idle qualities typically offer hls + llhls; client always picks hls.
+  const idleQ = (names: string[]): StreamQualityMap =>
+    Object.fromEntries(names.map(n => [n, { llhls: `${n}-llhls`, hls: `${n}-hls` }]));
 
   it('is null when no idle stream is configured', () => {
     expect(resolveIdleSelection(undefined, 'auto')).toBeNull();
@@ -84,13 +87,24 @@ describe('resolveIdleSelection', () => {
   });
 
   it('degrades to the only configured tier regardless of the requested one', () => {
+    // Q() only offers llhls — used as the no-hls fallback path.
     const sel = resolveIdleSelection(idle(Q(['full'])), 'saver');
     expect(sel).toMatchObject({ key: 'idle', quality: 'full', protocol: 'llhls' });
   });
 
   it('resolves through the same tier logic as a real stream once multiple qualities exist', () => {
-    const sel = resolveIdleSelection(idle(Q(['full', '720p', '480p'])), 'saver');
-    expect(sel).toMatchObject({ quality: '480p', protocol: 'llhls' });
+    const sel = resolveIdleSelection(idle(idleQ(['full', '720p', '480p'])), 'saver');
+    expect(sel).toMatchObject({ quality: '480p', protocol: 'hls' });
+  });
+
+  it('always picks hls even when llhls is listed first', () => {
+    const sel = resolveIdleSelection(idle(idleQ(['full'])), 'auto');
+    expect(sel).toMatchObject({ quality: 'full', protocol: 'hls' });
+  });
+
+  it('falls back to the first-listed protocol when hls is unavailable', () => {
+    const sel = resolveIdleSelection(idle(Q(['full'])), 'auto');
+    expect(sel).toMatchObject({ protocol: 'llhls' });
   });
 });
 
@@ -152,6 +166,24 @@ describe('sticky ended stream + auto-resume', () => {
 
     expect(sm.getSelectedStream()).toMatchObject({ key: 'bam/rem', quality: '480p', protocol: 'hls' });
     expect(sm.getEndedSelection()).toBeNull();
+  });
+
+  it('refreshes starting/metadata from the latest poll while still selected', () => {
+    const sm = setup();
+    sm.availableStreams = {
+      'bam/rem': { ...STREAMS['bam/rem'], starting: true, thumbnail: undefined },
+    };
+    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    expect(sm.getSelectedStream()?.stream.starting).toBe(true);
+
+    sm.availableStreams = {
+      'bam/rem': { ...STREAMS['bam/rem'], starting: false, thumbnail: 'https://example/thumb.jpg' },
+    };
+    sm.reconcileSelection();
+
+    expect(sm.getSelectedStream()?.stream.starting).toBe(false);
+    expect(sm.getSelectedStream()?.stream.thumbnail).toBe('https://example/thumb.jpg');
+    expect(sm.getSelectedStream()).toMatchObject({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
   });
 
   it('an explicit deselect drops the sticky intent (no resume)', () => {

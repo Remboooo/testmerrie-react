@@ -41,7 +41,8 @@ uniform float u_bulgeAmount;
 uniform float u_glowAmount;
 
 // Directional 5-tap binomial blur (1,4,6,4,1)/16 — used for Gloed's radial
-// mode, where the direction (and how far it reaches) carries meaning.
+// mode, where the direction (and how far it reaches) carries meaning, and as
+// the axis building block for the flat (no-chroma) blur below.
 vec3 blurDir5(sampler2D tex, vec2 uv, vec2 dir) {
   return (
     texture2D(tex, uv - dir * 2.0).rgb +
@@ -52,16 +53,18 @@ vec3 blurDir5(sampler2D tex, vec2 uv, vec2 dir) {
   ) / 16.0;
 }
 
-// Isotropic cross-pattern blur — used for Gloed's flat mode, where there's
-// no meaningful axis (unlike the radial mode, every direction blurs equally).
+// Isotropic flat blur: average of horizontal + vertical blurDir5. radius is
+// the outer tap extent (same footprint the old 5-point cross used), so the
+// binomial step is radius/2 — taps at ±r/2 and ±r fill the kernel instead of
+// jumping straight to ±r (which read as four ghosts once the slider pushed
+// r past a couple of texels). ~9 fetches, still one pass; cheap enough at
+// pass-1 (video-capped) resolution.
 vec3 blurFlat5(sampler2D tex, vec2 uv, float radius) {
-  vec2 dx = vec2(radius, 0.0);
-  vec2 dy = vec2(0.0, radius);
-  return texture2D(tex, uv).rgb * 0.4
-    + texture2D(tex, uv + dx).rgb * 0.15
-    + texture2D(tex, uv - dx).rgb * 0.15
-    + texture2D(tex, uv + dy).rgb * 0.15
-    + texture2D(tex, uv - dy).rgb * 0.15;
+  float tapStep = radius * 0.5;
+  return 0.5 * (
+    blurDir5(tex, uv, vec2(tapStep, 0.0)) +
+    blurDir5(tex, uv, vec2(0.0, tapStep))
+  );
 }
 
 void main() {

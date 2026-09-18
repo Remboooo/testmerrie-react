@@ -241,15 +241,16 @@ export default function App() {
 
   // Idle loop resolved through the same quality tier as real streams; null when
   // no idle stream is configured server-side (or none of its qualities exist yet).
+  // Always HLS — independent of the protocol selector (see resolveIdleSelection).
   const idleSelection: StreamSelection = useMemo(
     () => resolveIdleSelection(availableStreams.idleStream, qualityTier),
     [availableStreams.idleStream, qualityTier]
   );
 
-  // What to hand Chromecast: the selected stream, the idle loop when nothing is
-  // selected (and the placeholder is on), or nothing.
+  // What to hand Chromecast: the selected stream (once ready), the idle loop when
+  // nothing is selected / still starting (and the placeholder is on), or nothing.
   const chromecastStream: StreamSelection = useMemo(() => {
-    if (selectedStream !== null) {
+    if (selectedStream !== null && !selectedStream.stream.starting) {
       return selectedStream;
     }
     if (idleSelection === null || !usePlaceholderVideo) {
@@ -261,7 +262,7 @@ export default function App() {
   // What to show in the stats HUD: the selected stream, or the idle loop when
   // nothing is selected (and it's actually being played) — mirrors chromecastStream.
   const hudSelection: StreamSelection = useMemo(() => {
-    if (selectedStream !== null) {
+    if (selectedStream !== null && !selectedStream.stream.starting) {
       return selectedStream;
     }
     if (idleSelection === null || !usePlaceholderVideo) {
@@ -295,10 +296,14 @@ export default function App() {
   const [userInfo, setUserInfo] = useState<UserInfo>();
   const { enqueueSnackbar, } = useSnackbar();
 
-  // Ride out OME's readiness window: on a playback error for a real stream, retry
-  // the same source (shown as loading) rather than failing immediately. See
-  // docs/ome-stream-readiness.md.
+  // Ride out OME's readiness window: on a playback error for a real stream, keep
+  // retrying the same source (shown as loading) until it plays or the selection
+  // goes away. See docs/ome-stream-readiness.md.
   const retrying = usePlayerRetry(playerState, selectedStream, useCallback(() => setReloadNonce(n => n + 1), []));
+  // Middleware sets starting=true until the playlist is servable — hold the
+  // loading UI (and keep idle playing) rather than feeding the player a 404.
+  const streamStarting = selectedStream?.stream.starting === true;
+  const showLoading = retrying || streamStarting;
 
   useEffect(() => {
     if (!canPlayAudio) {
@@ -316,9 +321,11 @@ export default function App() {
 
   useEffect(() => {streamManager?.requestProtocolChange(selectedProtocol)}, [selectedProtocol]);
 
-  // Sources to hand the player: the selected stream, the idle loop, or nothing.
+  // Sources to hand the player: the selected stream (once ready), the idle loop,
+  // or nothing. While starting we keep the idle/placeholder playing so autoStart
+  // can select immediately without hitting the readiness 404 window.
   const sourcesList: SourcesList = useMemo(() => {
-    if (selectedStream !== null) {
+    if (selectedStream !== null && !selectedStream.stream.starting) {
       return { sources: streamSelectionToOvenPlayerSourceList(selectedStream), isPlaceholder: false };
     }
     if (idleSelection === null || !usePlaceholderVideo) {
@@ -371,10 +378,10 @@ export default function App() {
   }, [clearMouseOnVideoTimeout]);
 
   const userWantsDrawer = mouseOnDrawer || mouseActiveOnDrawerOpener;
-  // While retrying we're really in a loading state, so don't let the transient
-  // "error" force the drawer open on every retry cycle — only the terminal error
-  // (once retries are exhausted) should.
-  const userNeedsDrawer = (!sourcesList.sources.length) || ccConnected || (!retrying && playerState === "error");
+  // While retrying / waiting for starting we're really in a loading state, so
+  // don't let the transient "error" force the drawer open on every retry cycle —
+  // only a real terminal error should.
+  const userNeedsDrawer = (!sourcesList.sources.length) || ccConnected || (!showLoading && playerState === "error");
 
   useEffect(() => {
     // userNeedsDrawer (a real forced-open condition, e.g. a playback error)
@@ -382,7 +389,7 @@ export default function App() {
     // not, so a stray hover during the redirect handoff can't reopen the
     // drawer out from under it.
     setDrawerOpen((userWantsDrawer && !redirectHandoffActive) || userNeedsDrawer);
-  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState, retrying, redirectHandoffActive])
+  }, [mouseActiveOnDrawerOpener, mouseOnDrawer, selectedStream, ccConnected, playerState, showLoading, redirectHandoffActive])
 
   /* Fullscreen toggle logic */
 
@@ -417,7 +424,7 @@ export default function App() {
   let effectiveVolume = volumeToGain(sourcesList.isPlaceholder ? idleVolume : volume);
 
   return (
-    <div className={"App " + (retrying ? "loading" : playerState) + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
+    <div className={"App " + (showLoading ? "loading" : playerState) + (ccConnected ? " casting" : "") + (sourcesList.isPlaceholder ? " placeholder-video" : "")}>
       {/* SVG-fallback glow filter — unlike #chromatic-aberration (static, index.html),
           this one is rendered here so stdDeviation can track glowAmount reactively. */}
       <svg width="0" height="0" style={{position: "absolute"}}>
@@ -443,7 +450,7 @@ export default function App() {
               onClicked={() => {}}
               onStateChanged={({prevstate, newstate}) => {setPlayerState(newstate);}}
               sources={sourcesList.sources}
-              playerOptions={{autoStart: true, controls: false, loop: true, hlsConfig: selectedStream?.protocol === "hls" ? HLS_RESILIENT_CONFIG : undefined}}
+              playerOptions={{autoStart: true, controls: false, loop: true, hlsConfig: (sourcesList.isPlaceholder ? idleSelection?.protocol : selectedStream?.protocol) === "hls" ? HLS_RESILIENT_CONFIG : undefined}}
               volume={effectivelyMuted ? 0 : effectiveVolume}
               muted={effectivelyMuted}
               paused={ccConnected}

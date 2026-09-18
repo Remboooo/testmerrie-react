@@ -43,6 +43,9 @@ describe('buildPass1FragmentShader', () => {
     const withoutChroma = buildPass1FragmentShader({ ...P1_NONE, glow: true });
     expect(withoutChroma).not.toContain('#define EFFECT_CHROMA');
     expect(withoutChroma).toContain('#define EFFECT_GLOW');
+    // Flat path fills the kernel with H+V binomials (step = radius/2), not
+    // the old single-ring cross.
+    expect(withoutChroma).toContain('radius * 0.5');
   });
 
   test('no resolution/texel-size term anywhere in pass 1 -- Gloed stays sized relative to the frame', () => {

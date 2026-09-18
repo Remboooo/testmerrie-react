@@ -88,6 +88,10 @@ export type StreamQuality = keyof StreamQualityMap;
 export type StreamSpec = {
     name: string,
     streams: StreamQualityMap,
+    // true while OME has listed the ingest but the playlist still 404s (first
+    // segment not ready yet / reconnect window). Frontend holds off playback
+    // and shows a loading card instead of a broken thumbnail.
+    starting?: boolean,
     created?: string,
     video?: VideoStreamParams,
     audio?: AudioStreamParams,

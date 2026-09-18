@@ -1,14 +1,13 @@
 import './StreamSelector.css';
-import { SyntheticEvent, useEffect, useState } from 'react';
+import { SyntheticEvent } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { StreamMap, StreamProtocol, StreamQuality } from './BamApi';
-import { Card, CardActionArea, CardContent, CardMedia, Divider, FormControl, FormControlLabel, FormLabel, Link, Radio, RadioGroup } from '@mui/material';
+import { Card, CardActionArea, CardContent, CardMedia } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import theme from './theme';
-import { useSnackbar } from 'notistack';
 
 export type StreamSelectorProps = {
     streams: StreamMap,
@@ -26,8 +25,6 @@ export default function StreamSelector(props: StreamSelectorProps) {
         currentStream,
         endedStream,
     } = props;
-
-    const { enqueueSnackbar, } = useSnackbar();
 
     function selectStream(stream: string|null, protocol: StreamProtocol|null, quality: StreamQuality|null) {
         var newSelection: StreamSelectionRequest;
@@ -77,7 +74,15 @@ export default function StreamSelector(props: StreamSelectorProps) {
     } else {
         content = <>{endedCard}{Object.entries(streams).map(([key, props], i) => {
             var media;
-            if (props.thumbnail) {
+            if (props.starting) {
+                // Playlist (and thumbnail) not ready yet — don't fetch a 404 thumb.
+                media = (
+                    <Box className="thumbnail thumbnail-starting" sx={{ height: 140 }}>
+                        <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="" />
+                        <Typography variant="caption" color="text.secondary">Wordt klaargemaakt…</Typography>
+                    </Box>
+                );
+            } else if (props.thumbnail) {
                 media = (<CardMedia
                     component="img"
                     height="140"
@@ -104,8 +109,13 @@ export default function StreamSelector(props: StreamSelectorProps) {
                                 {props.name}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                {props.created ? <>Live sinds {formatDateTime(props.created)}</>:null }<br />
-                                {props.video ? <>In glorious {props.video.width || '?'}×{props.video.height || '?'} @ {formatBitrate(props.video.bitrate)}</>:null}                                
+                                {props.starting
+                                    ? <>Stream start zo…</>
+                                    : <>
+                                        {props.created ? <>Live sinds {formatDateTime(props.created)}</>:null }<br />
+                                        {props.video ? <>In glorious {props.video.width || '?'}×{props.video.height || '?'} @ {formatBitrate(props.video.bitrate)}</>:null}
+                                      </>
+                                }
                             </Typography>
                         </CardContent>
                     </CardActionArea>

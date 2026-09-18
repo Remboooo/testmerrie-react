@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { usePlayerRetry } from './usePlayerRetry';
+import { RETRY_DELAY_MS, RETRY_DELAY_MAX_MS, usePlayerRetry } from './usePlayerRetry';
 import { OvenPlayerState } from './OvenPlayer';
 import { StreamSelection } from './StreamManager';
 
@@ -19,6 +19,13 @@ function render(reload = vi.fn()) {
   };
 }
 
+/** Simulate one error → reload → loading → error cycle (as OvenPlayer does). */
+function cycleError(rerender: (props: { state: OvenPlayerState; sel: StreamSelection }) => void, sel = SEL) {
+  act(() => rerender({ state: 'error', sel }));
+  act(() => vi.advanceTimersByTime(RETRY_DELAY_MAX_MS)); // cover any current backoff
+  act(() => rerender({ state: 'loading', sel }));
+}
+
 describe('usePlayerRetry', () => {
   it('treats an error as loading and reloads the same source after the delay', () => {
     const { result, rerender, reload } = render();
@@ -28,7 +35,7 @@ describe('usePlayerRetry', () => {
     expect(result.current).toBe(true);          // shown as loading, not terminal error
     expect(reload).not.toHaveBeenCalled();
 
-    act(() => vi.advanceTimersByTime(2000));
+    act(() => vi.advanceTimersByTime(RETRY_DELAY_MS));
     expect(reload).toHaveBeenCalledTimes(1);     // retried the same selection
   });
 
@@ -41,18 +48,46 @@ describe('usePlayerRetry', () => {
     expect(result.current).toBe(false);
   });
 
-  it('gives up after the retry budget so the terminal error can show', () => {
-    const { result, rerender } = render();
+  it('keeps retrying past the old 16s budget while the stream stays selected', () => {
+    const { result, rerender, reload } = render();
     act(() => rerender({ state: 'error', sel: SEL }));
     expect(result.current).toBe(true);
 
-    // keep erroring past the ~16s budget
-    for (let i = 0; i < 10; i++) {
-      act(() => vi.advanceTimersByTime(2000));
-      act(() => rerender({ state: 'loading', sel: SEL }));
-      act(() => rerender({ state: 'error', sel: SEL }));
+    // Ride well past the former ~16s give-up: still selected → still retrying.
+    for (let i = 0; i < 12; i++) {
+      cycleError(rerender);
     }
-    expect(result.current).toBe(false);
+    expect(result.current).toBe(true);
+    expect(reload.mock.calls.length).toBeGreaterThan(8);
+  });
+
+  it('backs off toward RETRY_DELAY_MAX_MS between attempts', () => {
+    const { rerender, reload } = render();
+
+    act(() => rerender({ state: 'error', sel: SEL }));
+    act(() => vi.advanceTimersByTime(RETRY_DELAY_MS - 1));
+    expect(reload).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    // Next error: 4s delay
+    act(() => rerender({ state: 'loading', sel: SEL }));
+    act(() => rerender({ state: 'error', sel: SEL }));
+    act(() => vi.advanceTimersByTime(RETRY_DELAY_MS * 2 - 1));
+    expect(reload).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(1));
+    expect(reload).toHaveBeenCalledTimes(2);
+
+    // Third: 8s; fourth+ capped at max
+    act(() => rerender({ state: 'loading', sel: SEL }));
+    act(() => rerender({ state: 'error', sel: SEL }));
+    act(() => vi.advanceTimersByTime(RETRY_DELAY_MS * 4));
+    expect(reload).toHaveBeenCalledTimes(3);
+
+    act(() => rerender({ state: 'loading', sel: SEL }));
+    act(() => rerender({ state: 'error', sel: SEL }));
+    act(() => vi.advanceTimersByTime(RETRY_DELAY_MAX_MS));
+    expect(reload).toHaveBeenCalledTimes(4);
   });
 
   it('never retries when there is no selection', () => {
@@ -63,21 +98,22 @@ describe('usePlayerRetry', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it('resets the budget when the selection changes', () => {
-    const { result, rerender } = render();
-    // exhaust the budget on the first selection (cycle state so the effect re-runs,
-    // as the real retry->rebuild loop does)
-    act(() => rerender({ state: 'error', sel: SEL }));
-    for (let i = 0; i < 10; i++) {
-      act(() => vi.advanceTimersByTime(2000));
-      act(() => rerender({ state: 'loading', sel: SEL }));
-      act(() => rerender({ state: 'error', sel: SEL }));
+  it('resets the backoff when the selection changes', () => {
+    const { result, rerender, reload } = render();
+    // burn a few attempts so backoff has grown
+    for (let i = 0; i < 4; i++) {
+      cycleError(rerender);
     }
-    expect(result.current).toBe(false);
+    expect(result.current).toBe(true);
+    reload.mockClear();
 
-    // a different selection starts fresh
+    // a different selection starts fresh at the initial delay
     const SEL2 = { ...SEL, key: 'bam/other' } as StreamSelection;
     act(() => rerender({ state: 'error', sel: SEL2 }));
     expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(RETRY_DELAY_MS - 1));
+    expect(reload).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

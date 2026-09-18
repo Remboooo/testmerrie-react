@@ -55,16 +55,23 @@ export function resolveQualityTier(streams: StreamQualityMap, tier: QualityTier)
     }
 }
 
-// The idle loop is a StreamSpec like any other, just not listed in streamMap
-// (and never protocol-switched — it plays whatever protocol its one publisher
-// offers). Undefined/empty streams (not configured, or not yet encoded at any
-// tier) resolve to no selection rather than throwing.
-export function resolveIdleSelection(idleStream: StreamSpec | undefined, tier: QualityTier): StreamSelection {
+// The idle loop is a StreamSpec like any other, just not listed in streamMap.
+// Always uses HLS (ignores the protocol selector): LLHLS drifts out of sync
+// with the HLS schedule loop and isn't worth the request-volume tradeoff.
+// Falls back to the first listed protocol only if HLS is missing. Undefined/
+// empty streams (not configured, or not yet encoded at any tier) → null.
+export function resolveIdleSelection(
+    idleStream: StreamSpec | undefined,
+    tier: QualityTier,
+): StreamSelection {
     if (idleStream === undefined || Object.keys(idleStream.streams).length === 0) {
         return null;
     }
     const quality = resolveQualityTier(idleStream.streams, tier);
-    const protocol = Object.keys(idleStream.streams[quality])[0] as StreamProtocol;
+    const offered = idleStream.streams[quality];
+    const protocol: StreamProtocol = ("hls" in offered)
+        ? "hls"
+        : Object.keys(offered)[0] as StreamProtocol;
     return { key: "idle", stream: idleStream, quality, protocol };
 }
 
@@ -223,11 +230,26 @@ export class StreamManager {
 
     // Keep the selection in sync with availability: if the playing stream vanished
     // remember it as "ended"; if a remembered ended stream reappears, resume it
-    // with the same quality/protocol. Called on every poll (and exposed for tests).
+    // with the same quality/protocol. Also refresh the StreamSpec (starting flag,
+    // signed URLs, metadata) from the latest poll while still selected.
     reconcileSelection() {
         if (this.selectedStream !== null && !(this.selectedStream.key in this.availableStreams)) {
             this.endedSelection = this.selectedStream;
             this.selectedStream = null;
+        } else if (this.selectedStream !== null) {
+            const prev = this.selectedStream;
+            const refreshed = this.resolveSelection({
+                key: prev.key,
+                quality: prev.quality,
+                protocol: prev.protocol,
+            });
+            // resolveSelection can return null if the quality vanished mid-flight;
+            // fall back to tier resolution rather than dropping the selection.
+            this.selectedStream = refreshed ?? this.resolveSelection({
+                key: prev.key,
+                quality: null,
+                protocol: prev.protocol,
+            });
         } else if (this.endedSelection !== null && this.endedSelection.key in this.availableStreams) {
             this.selectedStream = this.resolveSelection({
                 key: this.endedSelection.key,

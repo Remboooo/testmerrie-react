@@ -22,49 +22,49 @@ from OME's static config, so the strings are always present; they just 404 until
 ready. So this is a **readiness** problem, not a bad-fallback / undefined-URL
 problem.
 
-## Current solution: client-side retry (+ error boundary)
+## Current solution: `starting` flag + client hold-off (+ retry safety net)
 
-- **Retry** (`src/usePlayerRetry.ts`): a player error on a *real* selection is
-  treated as transient — the player is reloaded on the **same quality/protocol**
-  (never substituted), shown as *loading*, for a budget (~16s). Only after the
-  budget is exhausted do we show the terminal error. This is the only approach
-  robust to the #969 reconnect window, and needs no OME/middleware changes.
-- **Error boundary** (`src/ErrorBoundary.tsx`): a top-level boundary so that *any*
-  render/lifecycle throw (e.g. a player edge case) degrades to a graceful,
-  reloadable fallback instead of a white screen.
+### Middleware (`starting`)
+
+`StreamsController` probes the first advertised LLHLS/HLS playlist on the local
+OME origin (`originPublishUrl`, default `http://127.0.0.1:3333` — bypasses nginx
+auth). While that probe is non-200, the stream is listed with:
+
+- `starting: true`
+- no `thumbnail` URL (thumbnail encode lags the playlist; advertising it only
+  produces a broken card image)
+
+Once the playlist returns 200, `starting` flips to `false` and the thumbnail is
+advertised. Probe failures (timeout / connection) **fail open** (`starting:
+false`) so a briefly unreachable origin doesn't freeze every card.
+
+### Frontend
+
+- **Hold off playback** while `starting`: keep the idle/placeholder playing (and
+  show the global loading overlay); switch to the real source on the poll where
+  `starting` becomes false. Auto-start can select the stream immediately without
+  hitting the 404 window.
+- **Stream card**: loading placeholder ("Wordt klaargemaakt…") instead of a
+  thumbnail while starting.
+- **Retry** (`src/usePlayerRetry.ts`): safety net if we still error after
+  `starting` flips (race, #969 edge). Reloads the **same** quality/protocol with
+  backoff (2s → 10s), for as long as the stream stays selected. Natural exits:
+  playback recovers, user picks something else, or the stream vanishes
+  (`reconcileSelection` → idle/placeholder).
+- **Error boundary** (`src/ErrorBoundary.tsx`): any render/lifecycle throw
+  degrades to a reloadable fallback instead of a white screen.
 
 Key invariant: **never silently change the user's quality or protocol to get
-something playing sooner.** Their choice is sticky; we retry it.
+something playing sooner.** Their choice is sticky; we wait/retry it.
 
-## Deferred / future improvement: OME Alert readiness gate
+## Deferred: OME Alert readiness gate
 
-The cleaner-in-theory option, deliberately deferred as too thorny/brittle for now.
-
-OME's **Alert module** can push HTTP notifications on stream lifecycle events. Our
-OME **0.20.0 build has these compiled in** (verified via `strings` on the binary):
-`EGRESS_STREAM_CREATED`, `EGRESS_STREAM_PREPARED`, **`EGRESS_LLHLS_READY`**,
-**`EGRESS_HLS_READY`**, `EGRESS_STREAM_DELETED`, and various failure states. The
-`*_READY` events are almost certainly the "playlist is now servable" signal.
-
-A readiness gate would look like:
-1. `Server.xml`: add an `<Alert>` block (`<Url>` pointing at the middleware,
-   `<SecretKey>`, Egress readiness rules) — requires an OME restart.
-2. Middleware: a new endpoint that receives Alert POSTs and tracks per-stream
-   readiness (`LLHLS_READY` / `HLS_READY` / `DELETED`) in memory.
-3. Middleware: only list a stream (or a protocol) in `/v1/streams` once it's READY.
-
-Result: streams would appear already-playable and the readiness window would be
-invisible to users.
-
-**Why deferred:**
-- It's **push-only** (no queryable "is it ready" REST field in 0.20.0 — the
-  `codecStatus` field newer docs mention is not in this build, and even that
-  reflects codec readiness, not segment/playlist readiness).
-- It makes the middleware a **stateful notification receiver** — more moving
-  parts, more failure modes, and cross-repo + OME-restart coordination.
-- A retry is needed **anyway** as a safety net for the #969 reconnect window.
-
-If revisited, keep the retry as the floor and layer the Alert gate on top.
+Push-based alternative (no per-poll HEAD). OME's Alert module is **documented
+only for Ingress rules**; the binary also contains `EGRESS_LLHLS_READY` /
+`EGRESS_HLS_READY` strings, but those aren't a supported Alert rule surface in
+current docs — so playlist probing is the reliable gate we ship. If a future OME
+exposes a queryable ready flag or a documented egress Alert, swap the probe for
+that and keep client retry as the floor.
 
 Refs: [Alert module](https://ovenmedia.com/docs/ome/alert) ·
 [HLS first-segment behavior](https://docs.ovenmediaengine.com/streaming/hls) ·
