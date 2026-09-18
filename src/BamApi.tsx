@@ -106,8 +106,27 @@ export type StreamResponse = {
     idleStream?: StreamSpec,
 };
 
+/** Thrown when the server-side session cookie is gone / rejected. */
+export class SessionExpiredError extends Error {
+    override name = "SessionExpiredError";
+    constructor(message = "Session expired") {
+        super(message);
+    }
+}
+
 export async function getStreams(): Promise<StreamResponse> {
-    return (await fetch(API_BASE + "/streams", {credentials: "include"})).json();
+    const response = await fetch(API_BASE + "/streams", {credentials: "include"});
+    if (response.status === 401) {
+        throw new SessionExpiredError();
+    }
+    if (!response.ok) {
+        let message = response.statusText;
+        try {
+            message = (await response.json())["message"] ?? message;
+        } catch { /* non-JSON error body */ }
+        throw new Error(message);
+    }
+    return response.json();
 }
 
 export type DiscordUser = {

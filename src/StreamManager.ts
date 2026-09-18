@@ -1,5 +1,4 @@
-import { useSnackbar } from "notistack";
-import { getStreams, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
+import { getStreams, SessionExpiredError, startAuthentication, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
@@ -141,6 +140,14 @@ export class StreamManager {
             this.checkAutoStart();
         }).catch(reason => {
             console.log("failed to get streams", reason);
+            // Session was dropped server-side (e.g. Discord refresh failed). Don't
+            // overwrite the last good stream list with an error body; kick off a
+            // silent Discord re-auth (prompt=none) so a still-logged-in Discord
+            // user comes back without a manual click.
+            if (reason instanceof SessionExpiredError) {
+                this.stopUpdates();
+                startAuthentication();
+            }
         });
     }
 

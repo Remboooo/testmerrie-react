@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { startAuthentication, getUserInfo, discardAuthentication, checkAuthentication } from './BamApi';
+import { startAuthentication, getUserInfo, getStreams, discardAuthentication, checkAuthentication, SessionExpiredError } from './BamApi';
 
 const STATE_KEY = 'discord-oauth2-state';
 
@@ -58,6 +58,36 @@ describe('getUserInfo', () => {
   it('throws the server-provided message on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ message: 'Geen Cool Persoon' }) }));
     await expect(getUserInfo()).rejects.toThrow('Geen Cool Persoon');
+  });
+});
+
+describe('getStreams', () => {
+  it('returns the parsed body when ok', async () => {
+    const body = { streams: {}, idleStream: undefined };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getStreams()).resolves.toEqual(body);
+    expect(fetchMock.mock.calls[0][1].credentials).toBe('include');
+  });
+
+  it('throws SessionExpiredError on 401 (do not treat the error JSON as a stream list)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Not authenticated' }),
+    }));
+    await expect(getStreams()).rejects.toBeInstanceOf(SessionExpiredError);
+  });
+
+  it('throws a generic Error on other non-ok responses', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: async () => ({ message: 'OME down' }),
+    }));
+    await expect(getStreams()).rejects.toThrow('OME down');
   });
 });
 
