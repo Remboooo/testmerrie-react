@@ -1,4 +1,4 @@
-import { getStreams, SessionExpiredError, startAuthentication, StreamMap, StreamProtocol, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
+import { getStreams, SessionExpiredError, startAuthentication, StreamMap, StreamProtocol, StreamProtocolUrlMap, StreamQuality, StreamQualityMap, StreamSpec } from "./BamApi";
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
@@ -53,6 +53,19 @@ export function resolveQualityTier(streams: StreamQualityMap, tier: QualityTier)
         case "auto":
         default: return adaptive ?? concrete[0] ?? names[0];
     }
+}
+
+// The preferred protocol if this quality offers it, else the closest one that
+// it does: the other WebRTC transport, then LLHLS, then HLS. A quality can lack
+// WebRTC entirely (e.g. a B-frame source, see StreamSpec.webrtcUnavailable).
+const PROTOCOL_FALLBACK_ORDER: StreamProtocol[] = ["webrtc-udp", "webrtc-tcp", "llhls", "hls"];
+
+export function pickProtocol(offered: StreamProtocolUrlMap, preferred: StreamProtocol|null): StreamProtocol {
+    const sameFamily: StreamProtocol[] = preferred?.startsWith("webrtc") ? ["webrtc-udp", "webrtc-tcp"] : [];
+    const order = [preferred, ...sameFamily, ...PROTOCOL_FALLBACK_ORDER];
+    return order.find((p): p is StreamProtocol => p !== null && p in offered)
+        ?? (Object.keys(offered)[0] as StreamProtocol | undefined)
+        ?? DEFAULT_PROTOCOL;
 }
 
 // The idle loop is a StreamSpec like any other, just not listed in streamMap.
@@ -131,6 +144,10 @@ export class StreamManager {
     // by hand also re-arms it (see the setter).
     private autoStartConsumed: boolean = false;
     private _qualityTier: QualityTier = readQualityTier();
+    // The protocol the user asked for. The selection's protocol can differ when
+    // the quality doesn't offer it; re-resolving against this (not the fallback)
+    // switches back once it's offered again.
+    private requestedProtocol: StreamProtocol|null = null;
     
     private updateStreamsOnce() {
         return getStreams().then(response => {
@@ -165,8 +182,8 @@ export class StreamManager {
                 const [streamKey, streamDef] = streamEntries[0];
                 if (Object.keys(streamDef.streams).length) {
                     const quality = resolveQualityTier(streamDef.streams, this._qualityTier);
-                    const preferred = readProtocolPreference();
-                    const protocol = preferred in streamDef.streams[quality] ? preferred : DEFAULT_PROTOCOL;
+                    this.requestedProtocol = readProtocolPreference();
+                    const protocol = pickProtocol(streamDef.streams[quality], this.requestedProtocol);
                     this.selectedStream = {key: streamKey, stream: streamDef, protocol, quality};
                     this.autoStartConsumed = true;
                     this.notify();
@@ -201,9 +218,8 @@ export class StreamManager {
             return;
         }
 
-        if (protocol === null || !(protocol in this.selectedStream.stream.streams[this.selectedStream.quality])) {
-            protocol = DEFAULT_PROTOCOL;
-        }
+        this.requestedProtocol = protocol;
+        protocol = pickProtocol(this.selectedStream.stream.streams[this.selectedStream.quality], protocol);
 
         this.selectedStream = {key: this.selectedStream.key, stream: this.selectedStream.stream, quality: this.selectedStream.quality, protocol};
         this.notify();
@@ -223,8 +239,7 @@ export class StreamManager {
         if (quality === undefined || !(quality in stream.streams)) {
             return null;
         }
-        const protocol: StreamProtocol = (request.protocol !== null && request.protocol in stream.streams[quality])
-            ? request.protocol : DEFAULT_PROTOCOL;
+        const protocol = pickProtocol(stream.streams[quality], request.protocol);
         return {key: request.key, stream, protocol, quality};
     }
 
@@ -238,23 +253,24 @@ export class StreamManager {
             this.selectedStream = null;
         } else if (this.selectedStream !== null) {
             const prev = this.selectedStream;
+            const protocol = this.requestedProtocol ?? prev.protocol;
             const refreshed = this.resolveSelection({
                 key: prev.key,
                 quality: prev.quality,
-                protocol: prev.protocol,
+                protocol,
             });
             // resolveSelection can return null if the quality vanished mid-flight;
             // fall back to tier resolution rather than dropping the selection.
             this.selectedStream = refreshed ?? this.resolveSelection({
                 key: prev.key,
                 quality: null,
-                protocol: prev.protocol,
+                protocol,
             });
         } else if (this.endedSelection !== null && this.endedSelection.key in this.availableStreams) {
             this.selectedStream = this.resolveSelection({
                 key: this.endedSelection.key,
                 quality: this.endedSelection.quality,
-                protocol: this.endedSelection.protocol,
+                protocol: this.requestedProtocol ?? this.endedSelection.protocol,
             });
             this.endedSelection = null;
         }
@@ -263,6 +279,7 @@ export class StreamManager {
     requestStreamSelection(request: StreamSelectionRequest) {
         // An explicit selection (including deselect) supersedes any sticky "ended" intent.
         this.endedSelection = null;
+        this.requestedProtocol = request.protocol;
         this.selectedStream = this.resolveSelection(request);
         this.notify();
     }
@@ -297,7 +314,7 @@ export class StreamManager {
             this.selectedStream = this.resolveSelection({
                 key: this.selectedStream.key,
                 quality: null,
-                protocol: this.selectedStream.protocol,
+                protocol: this.requestedProtocol ?? this.selectedStream.protocol,
             });
         }
         this.notify();

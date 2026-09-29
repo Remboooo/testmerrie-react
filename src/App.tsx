@@ -29,7 +29,7 @@ import Button from '@mui/material/Button';
 import { ChromecastSupport, ChromecastButton } from './Chromecast';
 import IconButton from '@mui/material/IconButton';
 import Dialog from '@mui/material/Dialog';
-import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent, Typography } from '@mui/material';
+import { DialogActions, DialogContent, DialogContentText, DialogTitle, FormControl, InputLabel, Link, MenuItem, Select, SelectChangeEvent, Tooltip, Typography } from '@mui/material';
 
 const MOUSE_ON_VIDEO_TIMEOUT = 2000;
 
@@ -338,6 +338,12 @@ export default function App() {
   // for OvenPlayer issue #370 (it doesn't switch sources cleanly), done
   // declaratively instead of via a manual rebuild flag + setTimeout dance.
   const sourceKey = sourcesList.sources.map(s => s.type + "|" + s.file).join("||");
+
+  // Playing another protocol than picked because this quality has no WebRTC
+  // (B-frame source; see StreamSpec.webrtcUnavailable).
+  const protocolFallback = selectedStream !== null
+    && selectedStream.protocol !== selectedProtocol
+    && (selectedStream.stream.webrtcUnavailable?.qualities.includes(selectedStream.quality) ?? false);
 
 
 
@@ -651,6 +657,15 @@ export default function App() {
                         ))}
                       </Select>
                     </FormControl>
+                    {protocolFallback ? (
+                      <Tooltip title={<>
+                        Nu via {PROTOCOL_OPTIONS.find(o => o.value === selectedStream?.protocol)?.label ?? selectedStream?.protocol}:
+                        deze stream gebruikt B-frames, die browsers via WebRTC niet goed afspelen.
+                        Kies een lagere kwaliteit voor WebRTC.
+                      </>}>
+                        <span role="img" aria-label="WebRTC niet beschikbaar voor deze kwaliteit" style={{cursor: 'help', marginLeft: '0.5em'}}>⚠️</span>
+                      </Tooltip>
+                    ) : null}
                     <FormControl size="small">
                       <InputLabel id="quality-select-label">Kwaliteit</InputLabel>
                       <Select

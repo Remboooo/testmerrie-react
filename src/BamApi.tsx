@@ -96,6 +96,13 @@ export type StreamSpec = {
     video?: VideoStreamParams,
     audio?: AudioStreamParams,
     thumbnail?: string,
+    // Set by the middleware when some qualities don't offer WebRTC: a source with
+    // B-frames can't be decoded by browsers' WebRTC decoders, so OME refuses it
+    // and only B-frame-free (transcoded) qualities keep WebRTC.
+    webrtcUnavailable?: {
+        reason: "bframes",
+        qualities: StreamQuality[],
+    },
 };
 
 export type StreamMap = {

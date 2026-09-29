@@ -3,7 +3,7 @@ import { SyntheticEvent } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { StreamMap, StreamProtocol, StreamQuality } from './BamApi';
-import { Card, CardActionArea, CardContent, CardMedia } from '@mui/material';
+import { Card, CardActionArea, CardContent, CardMedia, Tooltip } from '@mui/material';
 import tuinfeest from './tuinfeest.svg';
 import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
@@ -117,6 +117,21 @@ export default function StreamSelector(props: StreamSelectorProps) {
                                       </>
                                 }
                             </Typography>
+                            {props.webrtcUnavailable && !props.starting ? (
+                                <Tooltip
+                                    title={<>
+                                        Deze stream gebruikt B-frames, en die kunnen browsers via WebRTC niet goed afspelen.
+                                        In bronkwaliteit kijk je daarom via LLHLS (iets meer vertraging); kies een lagere
+                                        kwaliteit voor WebRTC.<br /><br />
+                                        Streamer? Zet B-frames uit in je encoder (OBS: x264-opties <code>bframes=0</code>,
+                                        of Max B-frames 0 bij NVENC).
+                                    </>}
+                                >
+                                    <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }} className="webrtc-unavailable">
+                                        ⚠️ WebRTC alleen in lagere kwaliteit
+                                    </Typography>
+                                </Tooltip>
+                            ) : null}
                         </CardContent>
                     </CardActionArea>
                 </Card>

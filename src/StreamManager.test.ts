@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { StreamManager, NO_SELECTION, resolveQualityTier, resolveIdleSelection } from './StreamManager';
+import { StreamManager, NO_SELECTION, pickProtocol, resolveQualityTier, resolveIdleSelection } from './StreamManager';
 import { StreamMap, StreamQualityMap, StreamSpec } from './BamApi';
 
 const Q = (names: string[]): StreamQualityMap => Object.fromEntries(names.map(n => [n, { llhls: n }]));
@@ -277,5 +277,72 @@ describe('autostart + availability', () => {
     sm.autoStart = false;
     sm.autoStart = true;
     expect(sm.getSelectedStream()).not.toBeNull();
+  });
+});
+
+describe('pickProtocol', () => {
+  const all = { 'webrtc-udp': 'u', 'webrtc-tcp': 't', llhls: 'l', hls: 'h' };
+  it('keeps the preferred protocol when offered', () => expect(pickProtocol(all, 'hls')).toBe('hls'));
+  it('prefers the other WebRTC transport first', () => expect(pickProtocol({ 'webrtc-tcp': 't', llhls: 'l' }, 'webrtc-udp')).toBe('webrtc-tcp'));
+  it('falls back to LLHLS when WebRTC is withheld', () => expect(pickProtocol({ llhls: 'l', hls: 'h' }, 'webrtc-udp')).toBe('llhls'));
+  it('falls back to HLS when that is all there is', () => expect(pickProtocol({ hls: 'h' }, 'webrtc-tcp')).toBe('hls'));
+  it('uses the fallback order without a preference', () => expect(pickProtocol(all, null)).toBe('webrtc-udp'));
+});
+
+describe('WebRTC withheld for B-frame qualities', () => {
+  // Middleware drops WebRTC from qualities carrying the B-frame source ("auto", "full").
+  const BFRAMES: StreamMap = {
+    'bam/rem': {
+      name: 'rem',
+      streams: {
+        auto: { llhls: 'auto-llhls', hls: 'auto-hls' },
+        full: { llhls: 'full-llhls', hls: 'full-hls' },
+        '1080p': { llhls: '1080-llhls', 'webrtc-udp': '1080-udp', 'webrtc-tcp': '1080-tcp' },
+      },
+      webrtcUnavailable: { reason: 'bframes', qualities: ['auto', 'full'] },
+    },
+  };
+  const NO_BFRAMES: StreamMap = {
+    'bam/rem': {
+      name: 'rem',
+      streams: {
+        auto: { llhls: 'auto-llhls', 'webrtc-udp': 'auto-udp' },
+        full: { llhls: 'full-llhls', 'webrtc-udp': 'full-udp' },
+        '1080p': { llhls: '1080-llhls', 'webrtc-udp': '1080-udp' },
+      },
+    },
+  };
+
+  it('plays the tier quality over LLHLS instead of a missing WebRTC URL', () => {
+    const sm = setup(BFRAMES);
+    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'webrtc-udp' });
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'auto', protocol: 'llhls' });
+  });
+
+  it('keeps WebRTC for a quality that still offers it', () => {
+    const sm = setup(BFRAMES);
+    sm.requestStreamSelection({ key: 'bam/rem', quality: '1080p', protocol: 'webrtc-udp' });
+    expect(sm.getSelectedStream()).toMatchObject({ quality: '1080p', protocol: 'webrtc-udp' });
+  });
+
+  it('returns to WebRTC once the source stops sending B-frames', () => {
+    const sm = setup(BFRAMES);
+    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'webrtc-udp' });
+    expect(sm.getSelectedStream()).toMatchObject({ protocol: 'llhls' });
+
+    sm.availableStreams = NO_BFRAMES;
+    sm.reconcileSelection();
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'auto', protocol: 'webrtc-udp' });
+  });
+
+  it('a protocol change to WebRTC on a withheld quality falls back but is remembered', () => {
+    const sm = setup(BFRAMES);
+    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestProtocolChange('webrtc-tcp');
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'llhls' });
+
+    sm.availableStreams = NO_BFRAMES;
+    sm.reconcileSelection();
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'webrtc-udp' });
   });
 });
