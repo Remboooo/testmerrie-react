@@ -97,7 +97,7 @@ export type StreamSpec = {
     audio?: AudioStreamParams,
     thumbnail?: string,
     // Set by the middleware when some qualities don't offer WebRTC: a source with
-    // B-frames can't be decoded by browsers' WebRTC decoders, so OME refuses it
+    // B-frames can't be decoded by browsers' WebRTC decoders, so the middleware withholds it
     // and only B-frame-free (transcoded) qualities keep WebRTC.
     webrtcUnavailable?: {
         reason: "bframes",
