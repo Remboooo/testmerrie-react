@@ -31,7 +31,9 @@
 }
 
 .thumbnail {
-  height: 150px;
+  height: 140px;
+  width: 100%;
+  object-fit: cover;
   background: rgba(0, 0, 0, 0.15);
   position: relative;
 }
@@ -43,6 +45,7 @@
   justify-content: center;
   gap: 0.4em;
   height: 140px;
+  width: 100%;
   background: rgba(0, 0, 0, 0.25);
 }
 

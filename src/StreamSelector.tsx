@@ -9,6 +9,22 @@ import { formatBitrate, formatDateTime } from './FormatUtil';
 import { NO_SELECTION, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import theme from './theme';
 
+// Match the active-stream card footprint so starting/ended (text-only) states
+// don't shrink to their copy. Thumbnails are 140px tall; 345 is the historic maxWidth.
+const CARD_SX = { width: 345, margin: theme.spacing(1) };
+const THUMB_HEIGHT = 140;
+
+function PlaceholderThumb({ caption }: { caption?: string }) {
+    return (
+        <Box className="thumbnail thumbnail-starting" sx={{ height: THUMB_HEIGHT }}>
+            <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="" />
+            {caption ? (
+                <Typography variant="caption" color="text.secondary">{caption}</Typography>
+            ) : null}
+        </Box>
+    );
+}
+
 export type StreamSelectorProps = {
     streams: StreamMap,
     screenshotTimestamp: number,
@@ -44,10 +60,11 @@ export default function StreamSelector(props: StreamSelectorProps) {
     const endedCard = endedStream ? (
         <Card
             key={"ended-" + endedStream.key}
-            sx={{ maxWidth: 345, margin: theme.spacing(1), opacity: 0.55 }}
+            sx={{ ...CARD_SX, opacity: 0.55 }}
             className="ended-stream-card"
         >
             <CardActionArea onClick={() => selectStream(null, null, null)}>
+                <PlaceholderThumb caption="Gestopt" />
                 <CardContent>
                     <Typography gutterBottom variant="h5">{endedStream.stream.name}</Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -76,28 +93,26 @@ export default function StreamSelector(props: StreamSelectorProps) {
             var media;
             if (props.starting) {
                 // Playlist (and thumbnail) not ready yet — don't fetch a 404 thumb.
-                media = (
-                    <Box className="thumbnail thumbnail-starting" sx={{ height: 140 }}>
-                        <img src={tuinfeest + "#svgView(viewBox(0,0,100,100))"} className="waiting-icon" alt="" />
-                        <Typography variant="caption" color="text.secondary">Wordt klaargemaakt…</Typography>
-                    </Box>
-                );
+                media = <PlaceholderThumb caption="Wordt klaargemaakt…" />;
             } else if (props.thumbnail) {
                 media = (<CardMedia
                     component="img"
-                    height="140"
+                    height={THUMB_HEIGHT}
                     className="thumbnail"
                     src={props.thumbnail + "&" + screenshotTimestamp}
                     onError={(e: SyntheticEvent<HTMLImageElement>) => {
                         (e.target as HTMLImageElement).src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
                     }}
                 />);
+            } else {
+                // No thumb yet (or failed) — keep the same footprint as a live card.
+                media = <PlaceholderThumb />;
             }
             const isSelected = currentStream?.key === key;
             return (
                 <Card 
                     key={key} 
-                    sx={{ maxWidth: 345, margin: theme.spacing(1) }}
+                    sx={CARD_SX}
                     className={isSelected ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
