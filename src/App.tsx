@@ -123,7 +123,8 @@ type SourcesList = {
 const DUMMY_AUDIO = new Audio("data:audio/ogg;base64,T2dnUwACAAAAAAAAAAAE19sTAAAAALSJfJMBE09wdXNIZWFkAQE4AYC7AAAAAABPZ2dTAAAAAAAAAAAAAATX2xMBAAAAMs4R1AEbT3B1c1RhZ3MLAAAAbGlib3B1cyAxLjQAAAAAT2dnUwAEOAEAAAAAAAAE19sTAgAAAH2fR5UBJ3AL5lPnqHt68t4P2sTcyxW/59HGZ5iOBdcPBxd7RYIrXeCvfBh0AA==");
 
 export default function App() {
-  const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp", (v) => v as StreamProtocol);
+  const [selectedProtocol, setSelectedProtocol] = usePersistedState<StreamProtocol>("protocol", "webrtc-udp",
+    (v) => PROTOCOL_OPTIONS.some(o => o.value === v) ? v as StreamProtocol : "webrtc-udp");
   const [mouseOnDrawer, setMouseOnDrawer] = useState<boolean>(false);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [playerState, setPlayerState] = useState<OvenPlayerState>("idle");
