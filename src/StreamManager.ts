@@ -40,9 +40,16 @@ function qualityRank(name: string): number {
     return match ? parseInt(match[1], 10) : 0;
 }
 
+export function findAdaptiveQuality(streams: StreamQualityMap): StreamQuality | undefined {
+    return Object.keys(streams).find(n => ADAPTIVE_QUALITY_NAMES.includes(n));
+}
+
+// Maps a tier to a concrete playlist name when there is no ABR master (idle
+// filler, or live streams that only advertise fixed ladders). Prefer
+// adaptive for tier "auto" when present.
 export function resolveQualityTier(streams: StreamQualityMap, tier: QualityTier): StreamQuality {
     const names = Object.keys(streams);
-    const adaptive = names.find(n => ADAPTIVE_QUALITY_NAMES.includes(n));
+    const adaptive = findAdaptiveQuality(streams);
     const concrete = names
         .filter(n => !ADAPTIVE_QUALITY_NAMES.includes(n))
         .sort((a, b) => qualityRank(b) - qualityRank(a)); // heaviest first
@@ -53,6 +60,80 @@ export function resolveQualityTier(streams: StreamQualityMap, tier: QualityTier)
         case "auto":
         default: return adaptive ?? concrete[0] ?? names[0];
     }
+}
+
+function offersWebRtc(urls: StreamProtocolUrlMap): boolean {
+    return ("webrtc-udp" in urls) || ("webrtc-tcp" in urls);
+}
+
+// Live playback playlist: stay on the ABR master whenever possible so quality
+// tiers can lock levels in-player without remounting. Fall back to concrete
+// playlists when the user wants WebRTC but the adaptive playlist withholds it
+// (B-frame Bypass — see StreamSpec.webrtcUnavailable).
+export function resolvePlaylistQuality(
+    streams: StreamQualityMap,
+    tier: QualityTier,
+    preferredProtocol: StreamProtocol | null = null,
+    requestedQuality: StreamQuality | null = null,
+): StreamQuality {
+    const adaptive = findAdaptiveQuality(streams);
+    if (adaptive) {
+        const wantsWebRtc = !!preferredProtocol?.startsWith("webrtc");
+        if (!wantsWebRtc || offersWebRtc(streams[adaptive])) {
+            return adaptive;
+        }
+        // Adaptive can't do WebRTC — pick among concrete playlists that can,
+        // so B-frame sources still get a WebRTC URL (fixed ladder, remount).
+        if (requestedQuality !== null
+            && requestedQuality in streams
+            && !ADAPTIVE_QUALITY_NAMES.includes(String(requestedQuality))
+            && offersWebRtc(streams[requestedQuality])) {
+            return requestedQuality;
+        }
+        const webrtcConcrete: StreamQualityMap = Object.fromEntries(
+            Object.entries(streams).filter(([name, urls]) =>
+                !ADAPTIVE_QUALITY_NAMES.includes(name) && offersWebRtc(urls),
+            ),
+        );
+        if (Object.keys(webrtcConcrete).length > 0) {
+            return resolveQualityTier(webrtcConcrete, tier);
+        }
+    }
+    if (requestedQuality !== null && requestedQuality in streams) {
+        return requestedQuality;
+    }
+    return resolveQualityTier(streams, tier);
+}
+
+// Match a quality tier to an OvenPlayer/hls.js level index (by height). Used to
+// lock ABR without swapping playlist URLs.
+export type QualityLevelInfo = { index: number; height: number; bitrate?: number };
+
+export type QualityLock =
+    | { auto: true }
+    | { auto: false; index: number };
+
+export function resolveQualityLock(tier: QualityTier, levels: QualityLevelInfo[]): QualityLock {
+    if (tier === "auto" || levels.length === 0) {
+        return { auto: true };
+    }
+    // Collapse same-height twins (e.g. Bypass vs Bypass+opus, or 1080p vs
+    // 1080p+aac) to the highest-bitrate candidate so tier picks map 1:1 to
+    // visible resolutions.
+    const byHeight = new Map<number, QualityLevelInfo>();
+    for (const level of levels) {
+        const prev = byHeight.get(level.height);
+        if (!prev || (level.bitrate ?? 0) > (prev.bitrate ?? 0)) {
+            byHeight.set(level.height, level);
+        }
+    }
+    const sorted = [...byHeight.values()].sort(
+        (a, b) => (b.height - a.height) || ((b.bitrate ?? 0) - (a.bitrate ?? 0)),
+    );
+    const pick = tier === "best" ? sorted[0]
+        : tier === "saver" ? sorted[sorted.length - 1]
+        : sorted[Math.floor(sorted.length / 2)];
+    return { auto: false, index: pick.index };
 }
 
 // The preferred protocol if this quality offers it, else the closest one that
@@ -181,8 +262,10 @@ export class StreamManager {
             if (this.selectedStream === null && streamEntries.length > 0) {
                 const [streamKey, streamDef] = streamEntries[0];
                 if (Object.keys(streamDef.streams).length) {
-                    const quality = resolveQualityTier(streamDef.streams, this._qualityTier);
                     this.requestedProtocol = readProtocolPreference();
+                    const quality = resolvePlaylistQuality(
+                        streamDef.streams, this._qualityTier, this.requestedProtocol, null,
+                    );
                     const protocol = pickProtocol(streamDef.streams[quality], this.requestedProtocol);
                     this.selectedStream = {key: streamKey, stream: streamDef, protocol, quality};
                     this.autoStartConsumed = true;
@@ -219,9 +302,13 @@ export class StreamManager {
         }
 
         this.requestedProtocol = protocol;
-        protocol = pickProtocol(this.selectedStream.stream.streams[this.selectedStream.quality], protocol);
-
-        this.selectedStream = {key: this.selectedStream.key, stream: this.selectedStream.stream, quality: this.selectedStream.quality, protocol};
+        // Re-resolve: switching onto WebRTC may need a concrete playlist when the
+        // ABR master withholds it (B-frames); switching off WebRTC can return to ABR.
+        this.selectedStream = this.resolveSelection({
+            key: this.selectedStream.key,
+            quality: null,
+            protocol,
+        });
         this.notify();
     }
 
@@ -230,12 +317,12 @@ export class StreamManager {
             return null;
         }
         const stream = this.availableStreams[request.key];
-        // Cards no longer pick a quality; an explicit request quality is still
-        // honoured (e.g. resuming an ended stream), otherwise the global tier
-        // resolves against whatever this stream offers.
-        const quality: StreamQuality = (request.quality !== null && request.quality in stream.streams)
-            ? request.quality
-            : resolveQualityTier(stream.streams, this._qualityTier);
+        // Prefer the ABR master so tier changes lock levels in-player. Explicit
+        // quality is only used when falling back to concrete playlists (no ABR,
+        // or WebRTC withheld on the adaptive playlist).
+        const quality = resolvePlaylistQuality(
+            stream.streams, this._qualityTier, request.protocol, request.quality,
+        );
         if (quality === undefined || !(quality in stream.streams)) {
             return null;
         }
@@ -309,7 +396,9 @@ export class StreamManager {
     requestQualityChange(tier: QualityTier) {
         localStorage.setItem('qualityTier', tier);
         this._qualityTier = tier;
-        // Re-resolve the current stream to the new tier (like a protocol change).
+        // Re-resolve: with an ABR master the playlist URL stays put and the
+        // player locks levels from qualityTier; without ABR this still swaps
+        // concrete playlist URLs as before.
         if (this.selectedStream !== null) {
             this.selectedStream = this.resolveSelection({
                 key: this.selectedStream.key,

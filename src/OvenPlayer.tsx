@@ -1,6 +1,7 @@
 import OvenPlayer from 'ovenplayer'
 
-import React, { createRef, useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { QualityLock, QualityTier, resolveQualityLock } from './StreamManager';
 
 // message box with errors div class = op-message-box
 // error text div class = op-message-text
@@ -70,7 +71,26 @@ export type OvenPlayerProps = {
     muted: boolean,
     paused: boolean,
     reloadNonce: number,
+    // When set (live ABR), tier changes call setAutoQuality/setCurrentQuality
+    // in place instead of remounting on a different playlist URL. Idle/fallback
+    // concrete playlists leave this undefined.
+    qualityLockTier: QualityTier | null,
 };
+
+// Drive hls.js directly rather than via OvenPlayer's setCurrentQuality, which
+// sets hls.currentLevel: an *immediate* switch that aborts and flushes the
+// buffer (a stall on live; during startup it can leave playback stuck in
+// "loading"). loadLevel only changes what the next fragment is fetched at, so
+// the switch lands seamlessly once the already-buffered media has played out.
+function applyHlsLock(hls: any, lock: QualityLock, starting = false) {
+    const target = lock.auto ? -1 : lock.index;
+    if (starting) {
+        hls.startLevel = target;
+    }
+    if (hls.manualLevel !== target) {
+        hls.loadLevel = target;
+    }
+}
 
 export default function OvenPlayerComponent({
         className = "",
@@ -109,6 +129,7 @@ export default function OvenPlayerComponent({
         muted = false,
         paused = false,
         reloadNonce = 0,
+        qualityLockTier = null,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
     let containerElementRef = useRef<HTMLDivElement>(null);
@@ -117,6 +138,8 @@ export default function OvenPlayerComponent({
     let mutedRef = useRef<boolean>(muted);
     let onStateChangedRef = useRef(onStateChanged);
     let onQualityLevelChangedRef = useRef(onQualityLevelChanged);
+    let hlsRef = useRef<any>(null);
+    let qualityLockTierRef = useRef<QualityTier | null>(qualityLockTier);
 
     let [loadedSources, setLoadedSources] = useState<OvenPlayerSource[]>([]);
 
@@ -124,6 +147,7 @@ export default function OvenPlayerComponent({
     mutedRef.current = muted;
     onStateChangedRef.current = onStateChanged;
     onQualityLevelChangedRef.current = onQualityLevelChanged;
+    qualityLockTierRef.current = qualityLockTier;
 
     const stateChangedCallback = useCallback((event: {prevstate: OvenPlayerState, newstate: OvenPlayerState}) => {
         if (playerRef.current) {
@@ -181,8 +205,21 @@ export default function OvenPlayerComponent({
             thePlayer.on('fullscreenChanged', onFullscreenChanged);
             thePlayer.on('clicked', onClicked);
             thePlayer.on('allPlaylistEnded', onAllPlaylistEnded);
-            thePlayer.on('hlsPrepared', onHlsPrepared);
-            thePlayer.on('hlsDestroyed', onHlsDestroyed);
+            thePlayer.on('hlsPrepared', (hls: any) => {
+                hlsRef.current = hls;
+                // Lock as soon as the levels are known, before hls.js fetches its
+                // first fragments at its own ABR guess — the polling apply below
+                // comes too late for that and would buffer a few seconds of the
+                // wrong rendition on every start.
+                hls.on("hlsManifestParsed", () => { // Hls.Events.MANIFEST_PARSED
+                    const tier = qualityLockTierRef.current;
+                    if (tier !== null) {
+                        applyHlsLock(hls, resolveQualityLock(tier, hls.levels.map((l: any, index: number) => ({index, height: l.height, bitrate: l.bitrate}))), true);
+                    }
+                });
+                onHlsPrepared(hls);
+            });
+            thePlayer.on('hlsDestroyed', () => {hlsRef.current = null; onHlsDestroyed();});
             // OME's WebRTC provider hands us the raw RTCPeerConnection so we can
             // read live getStats() (bitrate/fps/resolution) — hls has no equivalent.
             thePlayer.on('peerConnectionPrepared', onPeerConnectionPrepared);
@@ -285,6 +322,56 @@ export default function OvenPlayerComponent({
             }
         }
     }, [playerRef, paused]);
+
+    // Apply the global quality tier as an in-player ABR lock once levels exist
+    // (HLS manifest / WebRTC playlist). Retries briefly after a source load —
+    // levels are not available until the provider finishes negotiating.
+    useEffect(() => {
+        if (qualityLockTier === null) {
+            return;
+        }
+        const apply = (): boolean => {
+            const player = playerRef.current;
+            if (!player) {
+                return false;
+            }
+            const levels = player.getQualityLevels() as OvenPlayerQualityLevel[];
+            if (!levels?.length) {
+                return false;
+            }
+            const lock = resolveQualityLock(qualityLockTier, levels);
+            const hls = hlsRef.current;
+            try {
+                if (player.getProviderName() === "hls" && hls) {
+                    applyHlsLock(hls, lock);
+                } else if (lock.auto) {
+                    if (!player.isAutoQuality()) {
+                        player.setAutoQuality(true);
+                    }
+                } else if (player.isAutoQuality() || player.getCurrentQuality() !== lock.index) {
+                    player.setCurrentQuality(lock.index);
+                }
+            } catch (e) {
+                console.log("quality lock apply failed:", e);
+                return false;
+            }
+            return true;
+        };
+
+        if (apply()) {
+            return;
+        }
+        const interval = setInterval(() => {
+            if (apply()) {
+                clearInterval(interval);
+            }
+        }, 250);
+        const timeout = setTimeout(() => clearInterval(interval), 15000);
+        return () => {
+            clearInterval(interval);
+            clearTimeout(timeout);
+        };
+    }, [qualityLockTier, loadedSources, reloadNonce]);
 
     return(
         <div className="player-container" ref={containerElementRef}>

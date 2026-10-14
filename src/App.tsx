@@ -5,7 +5,7 @@ import OvenPlayerComponent, { OvenPlayerQualityLevel, OvenPlayerSource, OvenPlay
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { AvailableStreamUpdate, NO_SELECTION, QualityTier, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { ADAPTIVE_QUALITY_NAMES, AvailableStreamUpdate, NO_SELECTION, QualityTier, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import { volumeToGain } from './VolumeUtil';
@@ -337,7 +337,18 @@ export default function App() {
   // Key the player by its source so a source change remounts it — the workaround
   // for OvenPlayer issue #370 (it doesn't switch sources cleanly), done
   // declaratively instead of via a manual rebuild flag + setTimeout dance.
+  // Quality-tier changes on an ABR master keep the same URL, so this stays stable
+  // and the player locks levels in place instead of remounting.
   const sourceKey = sourcesList.sources.map(s => s.type + "|" + s.file).join("||");
+
+  // Live ABR: drive setAutoQuality/setCurrentQuality from the tier. Idle and
+  // concrete-only streams still swap playlist URLs (no in-player lock).
+  const qualityLockTier: QualityTier | null =
+    (!sourcesList.isPlaceholder
+      && selectedStream !== null
+      && ADAPTIVE_QUALITY_NAMES.includes(String(selectedStream.quality)))
+      ? qualityTier
+      : null;
 
   // Playing another protocol than picked because this quality has no WebRTC
   // (B-frame source; see StreamSpec.webrtcUnavailable).
@@ -417,14 +428,14 @@ export default function App() {
     }
   }, [streamManager, drawerOpen, selectedStream]);
 
-  // Issue a warning for broken ABR implementations
+  // Chrome's auto-ABR on OME masters is flaky; manual tier locks are fine.
   useEffect(() => {
-    if (['abr', 'auto'].some(v => selectedStream?.quality === v) && !!window.chrome) {
+    if (qualityLockTier === 'auto' && !!window.chrome) {
         enqueueSnackbar(<>
             ABR werkt slecht in Chrome, zie&nbsp;<Link target="_blank" href="https://github.com/AirenSoft/OvenMediaEngine/discussions/1066#discussioncomment-7902333">dit issue</Link>
         </>, {persist: false, variant: 'warning'});
     }
-  }, [selectedStream]);
+  }, [qualityLockTier]);
 
   let effectivelyMuted = muted || !canPlayAudio;
   let effectiveVolume = volumeToGain(sourcesList.isPlaceholder ? idleVolume : volume);
@@ -461,6 +472,7 @@ export default function App() {
               muted={effectivelyMuted}
               paused={ccConnected}
               reloadNonce={reloadNonce}
+              qualityLockTier={qualityLockTier}
               onQualityLevelChanged={(event) => {liveQualityRef.current = event.currentQuality;}}
               onBufferChanged={(event) => {bufferRef.current = {buffer: event.buffer, position: event.position};}}
               onHlsPrepared={(hls) => {hlsRef.current = hls;}}
