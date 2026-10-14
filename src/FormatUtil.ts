@@ -21,10 +21,10 @@ export function formatBitrate(b: number) {
     return b.toFixed(1) + ["", "k", "M", "G", "T", "P"][prefix] + "bps";
 }
 
-// "1080p60 · 6.0Mbps" — a rendition as offered in the quality dropdown.
-export function formatRendition(r: {height: number, framerate?: number, bitrate?: number}) {
+// "1080p60" — a rendition as offered in the quality dropdown.
+export function formatRendition(r: {height: number, framerate?: number}) {
     const fps = r.framerate ? Math.round(r.framerate) : "";
-    return `${r.height}p${fps}` + (r.bitrate ? ` · ${formatBitrate(r.bitrate)}` : "");
+    return `${r.height}p${fps}`;
 }
 
 // How an option reads in the quality dropdown and stats HUD.
