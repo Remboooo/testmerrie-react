@@ -9,7 +9,7 @@ import { ADAPTIVE_QUALITY_NAMES, AvailableStreamUpdate, NO_SELECTION, QualityTie
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import { volumeToGain } from './VolumeUtil';
-import StatsHud, { BufferInfo } from './StatsHud';
+import StatsHud from './StatsHud';
 import { useStreamManager } from './useStreamManager';
 import EffectsCanvas, { EffectsCanvasStatus } from './EffectsCanvas';
 import DisplaySettings, { DisplaySettingsHandle, EffectKey, EffectState, PresetName } from './DisplaySettings';
@@ -224,7 +224,6 @@ export default function App() {
   // Live player telemetry for the stats HUD, held in refs so the frequent
   // buffer/quality updates don't re-render App; the HUD polls them at 1 Hz.
   const liveQualityRef = useRef<OvenPlayerQualityLevel | null>(null);
-  const bufferRef = useRef<BufferInfo | null>(null);
   const hlsRef = useRef<any>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const cornerDisplaySettingsRef = useRef<DisplaySettingsHandle>(null);
@@ -235,7 +234,6 @@ export default function App() {
   // would catch the button mid-slide and jump/restart the Menu's grow
   // animation once the button reached its final spot.
   const pendingCornerOpenRef = useRef<boolean>(false);
-  useEffect(() => { liveQualityRef.current = null; bufferRef.current = null; pcRef.current = null; }, [selectedStream]);
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
@@ -340,6 +338,10 @@ export default function App() {
   // Quality-tier changes on an ABR master keep the same URL, so this stays stable
   // and the player locks levels in place instead of remounting.
   const sourceKey = sourcesList.sources.map(s => s.type + "|" + s.file).join("||");
+  // Clear stale telemetry only when playback actually moves to another source —
+  // not on every selection object: each stream poll re-resolves the selection,
+  // and an in-place quality lock keeps the same source.
+  useEffect(() => { liveQualityRef.current = null; pcRef.current = null; }, [sourceKey]);
 
   // Live ABR: drive setAutoQuality/setCurrentQuality from the tier. Idle and
   // concrete-only streams still swap playlist URLs (no in-player lock).
@@ -474,7 +476,6 @@ export default function App() {
               reloadNonce={reloadNonce}
               qualityLockTier={qualityLockTier}
               onQualityLevelChanged={(event) => {liveQualityRef.current = event.currentQuality;}}
-              onBufferChanged={(event) => {bufferRef.current = {buffer: event.buffer, position: event.position};}}
               onHlsPrepared={(hls) => {hlsRef.current = hls;}}
               onHlsDestroyed={() => {hlsRef.current = null;}}
               onPeerConnectionPrepared={(pc) => {pcRef.current = pc;}}
@@ -579,7 +580,6 @@ export default function App() {
               selection={hudSelection}
               qualityTier={qualityTier}
               liveQualityRef={liveQualityRef}
-              bufferRef={bufferRef}
               hlsRef={hlsRef}
               pcRef={pcRef}
               effectsEnabled={effectsEnabled}

@@ -22,14 +22,11 @@ const STATE_LABELS: Partial<Record<OvenPlayerState, string>> = {
     complete: "klaar",
 };
 
-export type BufferInfo = { buffer: number; position: number };
-
 export type StatsHudProps = {
     playerState: OvenPlayerState;
     selection: StreamSelection;
     qualityTier: QualityTier;
     liveQualityRef: MutableRefObject<OvenPlayerQualityLevel | null>;
-    bufferRef: MutableRefObject<BufferInfo | null>;
     hlsRef: MutableRefObject<any>;
     pcRef: MutableRefObject<RTCPeerConnection | null>;
     effectsEnabled: boolean;
@@ -55,7 +52,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
     return (
         <div className="stats-row">
             <span className="stats-label">{label}</span>
-            <span className="stats-value">{value ?? "—"}</span>
+            <span className="stats-value">{value ?? "?"}</span>
         </div>
     );
 }
@@ -64,7 +61,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 // stream metadata; the live column ("Nu") reflects what the player is actually
 // doing. The live numbers are held in refs and polled here at 1 Hz so frequent
 // buffer/bandwidth updates don't re-render the whole App.
-export default function StatsHud({ playerState, selection, qualityTier, liveQualityRef, bufferRef, hlsRef, pcRef, effectsEnabled, webglEnabled, webglSupport, effectiveRenderer }: StatsHudProps) {
+export default function StatsHud({ playerState, selection, qualityTier, liveQualityRef, hlsRef, pcRef, effectsEnabled, webglEnabled, webglSupport, effectiveRenderer }: StatsHudProps) {
     const [, setTick] = useState(0);
     const webrtcLiveRef = useRef<WebrtcLive | null>(null);
     const prevRef = useRef<{ bytes: number; ts: number; bitrate?: number } | null>(null);
@@ -118,20 +115,32 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
 
     const video = selection?.stream.video;
     const audio = selection?.stream.audio;
-    const buf = bufferRef.current;
-    const bufferSec = buf && isFinite(buf.buffer) && isFinite(buf.position)
-        ? Math.max(0, buf.buffer - buf.position)
+    // Seconds buffered ahead of the playhead, measured off the <video> element
+    // (OvenPlayer's bufferChanged only carries a percentage). WebRTC has no
+    // meaningful buffer.
+    const vidEl = document.querySelector<HTMLVideoElement>(".ovenplayer video");
+    const ahead = vidEl && vidEl.buffered.length
+        ? vidEl.buffered.end(vidEl.buffered.length - 1) - vidEl.currentTime
+        : NaN;
+    const bufferSec = !selection?.protocol.startsWith("webrtc") && isFinite(ahead)
+        ? Math.max(0, ahead)
         : null;
     const bandwidth = hlsRef.current?.bandwidthEstimate as number | undefined;
 
     // Live "Nu" rendition: measured from WebRTC getStats, or the nominal hls level.
     const isWebrtc = !!selection?.protocol && selection.protocol.startsWith("webrtc");
     const wrtc = webrtcLiveRef.current;
-    const hlsLevel = liveQualityRef.current;
+    // Read the playing level straight off hls.js: qualityLevelChanged only
+    // fires on a switch, so a level that never changes would never be reported.
+    const hls = hlsRef.current;
+    const hlsPlaying = hls?.levels?.[hls.currentLevel];
+    const hlsLevel = hlsPlaying
+        ? { width: hlsPlaying.width, height: hlsPlaying.height, bitrate: hlsPlaying.bitrate, frameRate: hlsPlaying.frameRate as number | undefined }
+        : liveQualityRef.current;
     const liveW = isWebrtc ? wrtc?.width : hlsLevel?.width;
     const liveH = isWebrtc ? wrtc?.height : hlsLevel?.height;
     const liveBitrate = isWebrtc ? wrtc?.bitrate : (hlsLevel ? Number(hlsLevel.bitrate) : undefined);
-    const liveFps = isWebrtc ? wrtc?.fps : undefined;
+    const liveFps = isWebrtc ? wrtc?.fps : (hlsLevel && "frameRate" in hlsLevel ? hlsLevel.frameRate : undefined);
     const renditionStr = (liveW && liveH)
         ? `${liveW}×${liveH}${liveBitrate ? ` · ${formatBitrate(liveBitrate)}` : ""}`
         : null;
@@ -158,11 +167,11 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
                 <Row label="Status" value={STATE_LABELS[playerState] ?? playerState} />
                 <Row label="Effecten" value={rendererLabel(effectsEnabled, webglEnabled, webglSupport, effectiveRenderer)} />
                 <Row label="Protocol" value={selection?.protocol} />
-                <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${qualityResolved ?? "—"}`} />
+                <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${qualityResolved ?? "?"}`} />
                 <Row label="Rendition" value={renditionStr} />
-                {liveFps != null && <Row label="FPS" value={Math.round(liveFps)} />}
-                {bufferSec != null && <Row label="Buffer" value={`${bufferSec.toFixed(1)} s`} />}
-                {bandwidthEstimate != null && <Row label="Verbinding (schatting)" value={formatBitrate(bandwidthEstimate)} />}
+                <Row label="FPS" value={liveFps ? Math.round(liveFps) : null} />
+                <Row label="Buffer" value={bufferSec != null ? `${bufferSec.toFixed(1)} s` : null} />
+                <Row label="Verbinding (schatting)" value={bandwidthEstimate != null ? formatBitrate(bandwidthEstimate) : null} />
             </div>
         </div>
     );
