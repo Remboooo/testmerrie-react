@@ -2,10 +2,11 @@ import { getStreams, Rendition, SessionExpiredError, startAuthentication, Stream
 
 const UPDATE_INTERVAL = 5000;
 const DEFAULT_PROTOCOL = "webrtc-udp";
-// The viewer's quality intent: let ABR decide, or the bitrate (bps) of the
-// rendition they last picked. Streams offer different ladders, so a bitrate
-// resolves to whichever offered rendition is closest.
-export type QualityPreference = "auto" | number;
+// The viewer's quality intent: let ABR decide, always the heaviest rendition
+// (normally the passthrough), or the bitrate (bps) of the rendition they last
+// picked. Streams offer different ladders, so a bitrate resolves to whichever
+// offered rendition is closest.
+export type QualityPreference = "auto" | "max" | number;
 export const DEFAULT_QUALITY_PREFERENCE: QualityPreference = "auto";
 
 // One choice in the quality dropdown: the playlist to load plus, on an ABR
@@ -16,6 +17,8 @@ export type QualityOption = {
     id: string,
     quality: StreamQuality,
     auto: boolean,
+    // The heaviest fixed option; picking it means "max", not its bitrate.
+    max: boolean,
     rendition?: Rendition,
 };
 
@@ -81,9 +84,9 @@ export function qualityOptions(stream: StreamSpec, protocol: StreamProtocol|null
     const wantsWebRtc = !!protocol?.startsWith("webrtc");
     if (adaptive !== undefined && (!wantsWebRtc || offersWebRtc(streams[adaptive]))) {
         const locks: QualityOption[] = (renditions[adaptive] ?? []).map(rendition => ({
-            id: `${adaptive}@${rendition.height}`, quality: adaptive, auto: false, rendition,
+            id: `${adaptive}@${rendition.height}`, quality: adaptive, auto: false, max: false, rendition,
         }));
-        return [{id: "auto", quality: adaptive, auto: true}, ...locks.sort(heaviestFirst)];
+        return [{id: "auto", quality: adaptive, auto: true, max: false}, ...markMax(locks.sort(heaviestFirst))];
     }
     const concrete = Object.keys(streams).filter(name => !ADAPTIVE_QUALITY_NAMES.includes(name));
     const playable = wantsWebRtc ? concrete.filter(name => offersWebRtc(streams[name])) : concrete;
@@ -91,17 +94,24 @@ export function qualityOptions(stream: StreamSpec, protocol: StreamProtocol|null
         // Nothing serves WebRTC at all: offer everything; pickProtocol falls back.
         return protocol === null ? [] : qualityOptions(stream, null);
     }
-    return playable
-        .map(name => ({id: name, quality: name, auto: false, rendition: renditions[name]?.[0]}))
-        .sort(heaviestFirst);
+    return markMax(playable
+        .map(name => ({id: name, quality: name, auto: false, max: false, rendition: renditions[name]?.[0]}))
+        .sort(heaviestFirst));
+}
+
+function markMax(heaviestFirst: QualityOption[]): QualityOption[] {
+    return heaviestFirst.map((option, i) => i === 0 ? {...option, max: true} : option);
 }
 
 // The option closest to the preference. Closeness is by bitrate ratio, not
-// difference (4 Mbps is nearer 6 than 2.5). "auto" without an ABR master, or
-// options without known bitrates, fall back to the heaviest.
+// difference (4 Mbps is nearer 6 than 2.5). "max" is always the heaviest, as
+// are "auto" without an ABR master and options without known bitrates.
 export function pickOption(options: QualityOption[], preference: QualityPreference): QualityOption | undefined {
     const auto = options.find(o => o.auto);
     const fixed = options.filter(o => !o.auto);
+    if (preference === "max") {
+        return fixed[0] ?? auto;
+    }
     if (preference === "auto") {
         return auto ?? fixed[0];
     }
@@ -168,7 +178,10 @@ export function resolveIdleSelection(
 export function readQualityPreference(): QualityPreference {
     const v = localStorage.getItem("qualityPreference");
     const bitrate = Number(v);
-    return (v !== null && v !== "auto" && isFinite(bitrate) && bitrate > 0) ? bitrate : DEFAULT_QUALITY_PREFERENCE;
+    if (v === "max") {
+        return "max";
+    }
+    return (v !== null && isFinite(bitrate) && bitrate > 0) ? bitrate : DEFAULT_QUALITY_PREFERENCE;
 }
 
 // The user's persisted protocol preference (App mirrors it to localStorage under
@@ -371,9 +384,12 @@ export class StreamManager {
     }
 
     // The viewer picked an option from the dropdown: play exactly that, and
-    // remember its bitrate (or auto) so other streams pick their closest match.
+    // remember it (auto, max, or its bitrate) so other streams pick their
+    // closest match.
     requestQualityChange(option: QualityOption) {
-        const preference: QualityPreference = option.auto ? "auto" : (option.rendition?.bitrate || "auto");
+        const preference: QualityPreference = option.auto ? "auto"
+            : option.max ? "max"
+            : (option.rendition?.bitrate || "auto");
         localStorage.setItem('qualityPreference', String(preference));
         localStorage.removeItem('qualityTier'); // superseded
         this._qualityPreference = preference;

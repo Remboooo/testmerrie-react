@@ -1,4 +1,6 @@
 
+import type { QualityOption, QualityPreference } from './StreamManager';
+
 export function formatDateTime(dt: (Date|string)) {
     if (!(dt instanceof Date)) {
         dt = new Date(dt);
@@ -23,4 +25,15 @@ export function formatBitrate(b: number) {
 export function formatRendition(r: {height: number, framerate?: number, bitrate?: number}) {
     const fps = r.framerate ? Math.round(r.framerate) : "";
     return `${r.height}p${fps}` + (r.bitrate ? ` · ${formatBitrate(r.bitrate)}` : "");
+}
+
+// How an option reads in the quality dropdown and stats HUD.
+export function formatQualityOption(option: QualityOption): string {
+    if (option.auto) return "Auto";
+    const label = option.rendition ? formatRendition(option.rendition) : String(option.quality);
+    return option.max ? `Max · ${label}` : label;
+}
+
+export function formatQualityPreference(preference: QualityPreference): string {
+    return preference === "auto" ? "Auto" : preference === "max" ? "Max" : `≈ ${formatBitrate(preference)}`;
 }

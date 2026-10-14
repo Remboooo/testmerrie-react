@@ -1,7 +1,7 @@
 import { MutableRefObject, ReactNode, useEffect, useRef, useState } from 'react';
 import { OvenPlayerQualityLevel, OvenPlayerState } from './OvenPlayer';
 import { StreamSelection } from './StreamManager';
-import { formatBitrate, formatRendition } from './FormatUtil';
+import { formatBitrate, formatQualityOption } from './FormatUtil';
 import { WebglSupport } from './webgl/useWebglSupport';
 import './StatsHud.css';
 
@@ -140,8 +140,7 @@ export default function StatsHud({ playerState, selection, liveQualityRef, hlsRe
     const option = selection?.option;
     const qualityLabel = !option ? null
         : option.auto ? `Auto → ${liveH ? `${liveH}p` : "?"}`
-        : option.rendition ? formatRendition(option.rendition)
-        : String(option.quality);
+        : formatQualityOption(option);
     // hls.js exposes a throughput estimate; WebRTC's (when present) rides on the
     // selected ICE candidate pair.
     const bandwidthEstimate = isWebrtc ? wrtc?.avail : bandwidth;

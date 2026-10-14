@@ -5,8 +5,8 @@ import OvenPlayerComponent, { OvenPlayerQualityLevel, OvenPlayerSource, OvenPlay
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { ADAPTIVE_QUALITY_NAMES, AvailableStreamUpdate, NO_SELECTION, QualityOption, QualityPreference, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
-import { formatBitrate, formatRendition } from './FormatUtil';
+import { ADAPTIVE_QUALITY_NAMES, AvailableStreamUpdate, NO_SELECTION, QualityOption, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { formatQualityOption, formatQualityPreference } from './FormatUtil';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import { volumeToGain } from './VolumeUtil';
@@ -87,14 +87,6 @@ const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom' | 'off'>, Record<Effec
   },
 };
 
-export function qualityOptionLabel(option: QualityOption): string {
-  if (option.auto) return "Auto";
-  return option.rendition ? formatRendition(option.rendition) : String(option.quality);
-}
-
-function qualityPreferenceLabel(preference: QualityPreference): string {
-  return preference === "auto" ? "Auto" : `≈ ${formatBitrate(preference)}`;
-}
 
 // hls.js config used only for the HLS protocol: buffer generously and be patient
 // on slow/unstable networks (the defaults abort loads after 10s).
@@ -695,7 +687,7 @@ export default function App() {
                         sx={{width: '13em'}}
                         displayEmpty
                         disabled={qualitySelection === null}
-                        renderValue={() => qualitySelection ? qualityOptionLabel(qualitySelection.option) : qualityPreferenceLabel(qualityPreference)}
+                        renderValue={() => qualitySelection ? formatQualityOption(qualitySelection.option) : formatQualityPreference(qualityPreference)}
                         onChange={(event: SelectChangeEvent) => {
                           const option = qualitySelection?.options.find(o => o.id === event.target.value);
                           if (option) {
@@ -705,7 +697,7 @@ export default function App() {
                       >
                         {(qualitySelection?.options ?? []).map(option => (
                           <MenuItem key={option.id} value={option.id}>
-                            <Typography variant="body2">{qualityOptionLabel(option)}</Typography>
+                            <Typography variant="body2">{formatQualityOption(option)}</Typography>
                           </MenuItem>
                         ))}
                       </Select>

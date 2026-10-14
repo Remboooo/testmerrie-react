@@ -200,6 +200,20 @@ describe('quality preference', () => {
     expect(localStorage.getItem('qualityPreference')).toBe('auto');
   });
 
+  it('the top option stores max, which follows each stream to its heaviest', () => {
+    const idleLike: StreamSpec = { name: 'idle', streams: { full: { llhls: 'f' }, '480p': { llhls: '4' } },
+      renditions: { full: [R(1080, 10000000, 60)], '480p': [R(480, 600000)] } };
+    const sm = setup({ 'x/idle': idleLike, 'bam/rem': LADDER });
+    sm.requestStreamSelection({ key: 'x/idle', protocol: 'llhls' });
+    expect(sm.getSelectedStream()!.options.map(o => o.max)).toEqual([true, false]);
+    sm.requestQualityChange(option(sm, 'full'));
+    expect(localStorage.getItem('qualityPreference')).toBe('max');
+
+    // 1080p@10M is nearest to the 1080p@6M rendition, but max means the top.
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
+    expect(sm.getSelectedStream()?.option).toMatchObject({ id: 'auto@2160', max: true });
+  });
+
   it('a new stream picks the closest option without storing it', () => {
     localStorage.setItem('qualityPreference', '4000000');
     const sm = setup({
