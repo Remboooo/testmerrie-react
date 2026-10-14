@@ -57,12 +57,25 @@ export default function StatsHud({ playerState, selection, liveQualityRef, hlsRe
     const [, setTick] = useState(0);
     const webrtcLiveRef = useRef<WebrtcLive | null>(null);
     const prevRef = useRef<{ bytes: number; ts: number; bitrate?: number } | null>(null);
+    // Frames the <video> element actually presented per wall-clock second (so
+    // live catch-up shows as e.g. 61 on 60 fps content). Playlists only
+    // carry OME's long-run average FRAME-RATE, which is wrong for sources that
+    // mix rates (the idle loop alternates 60 and 24 fps files: "55").
+    const decodedFpsRef = useRef<number | null>(null);
+    const prevFramesRef = useRef<{ frames: number; ts: number } | null>(null);
     useEffect(() => {
         const id = setInterval(() => {
             const pc = pcRef.current;
             // The <video> element always knows its painted resolution — Firefox in
             // particular often omits frameWidth/frameHeight from inbound-rtp stats.
             const vidEl = document.querySelector<HTMLVideoElement>(".ovenplayer video");
+            const frames = vidEl?.getVideoPlaybackQuality?.().totalVideoFrames;
+            const now = performance.now();
+            const prevFrames = prevFramesRef.current;
+            decodedFpsRef.current = (frames !== undefined && prevFrames && frames >= prevFrames.frames && now > prevFrames.ts)
+                ? (frames - prevFrames.frames) * 1000 / (now - prevFrames.ts)
+                : null;
+            prevFramesRef.current = frames !== undefined ? { frames, ts: now } : null;
             if (pc) {
                 // WebRTC has no bandwidth-estimate accessor, but we can measure the
                 // real inbound video stream: bitrate from the bytesReceived delta,
@@ -127,12 +140,12 @@ export default function StatsHud({ playerState, selection, liveQualityRef, hlsRe
     const hls = hlsRef.current;
     const hlsPlaying = hls?.levels?.[hls.currentLevel];
     const hlsLevel = hlsPlaying
-        ? { width: hlsPlaying.width, height: hlsPlaying.height, bitrate: hlsPlaying.bitrate, frameRate: hlsPlaying.frameRate as number | undefined }
+        ? { width: hlsPlaying.width, height: hlsPlaying.height, bitrate: hlsPlaying.bitrate }
         : liveQualityRef.current;
     const liveW = isWebrtc ? wrtc?.width : hlsLevel?.width;
     const liveH = isWebrtc ? wrtc?.height : hlsLevel?.height;
     const liveBitrate = isWebrtc ? wrtc?.bitrate : (hlsLevel ? Number(hlsLevel.bitrate) : undefined);
-    const liveFps = isWebrtc ? wrtc?.fps : (hlsLevel && "frameRate" in hlsLevel ? hlsLevel.frameRate : undefined);
+    const liveFps = isWebrtc ? wrtc?.fps : decodedFpsRef.current;
     const renditionStr = (liveW && liveH)
         ? `${liveW}×${liveH}${liveBitrate ? ` · ${formatBitrate(liveBitrate)}` : ""}`
         : null;
