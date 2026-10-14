@@ -85,9 +85,21 @@ export type StreamQualityMap = {
 
 export type StreamQuality = keyof StreamQualityMap;
 
+// A video rendition a quality (playlist) serves, as reported by the middleware
+// from OME's track stats. Bypass bitrates are measured, so they drift a little.
+export type Rendition = {
+    width: number,
+    height: number,
+    framerate?: number,
+    bitrate: number,
+};
+
 export type StreamSpec = {
     name: string,
     streams: StreamQualityMap,
+    // Per quality, the distinct video renditions it serves (heaviest first);
+    // absent from older middleware.
+    renditions?: {[quality: string]: Rendition[]},
     // true while OME has listed the ingest but the playlist still 404s (first
     // segment not ready yet / reconnect window). Frontend holds off playback
     // and shows a loading card instead of a broken thumbnail.

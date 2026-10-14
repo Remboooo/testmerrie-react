@@ -1,16 +1,9 @@
 import { MutableRefObject, ReactNode, useEffect, useRef, useState } from 'react';
 import { OvenPlayerQualityLevel, OvenPlayerState } from './OvenPlayer';
-import { ADAPTIVE_QUALITY_NAMES, QualityTier, StreamSelection } from './StreamManager';
-import { formatBitrate } from './FormatUtil';
+import { StreamSelection } from './StreamManager';
+import { formatBitrate, formatRendition } from './FormatUtil';
 import { WebglSupport } from './webgl/useWebglSupport';
 import './StatsHud.css';
-
-const TIER_LABELS: Record<QualityTier, string> = {
-    auto: "Auto",
-    best: "Beste",
-    balanced: "Gebalanceerd",
-    saver: "Databesparing",
-};
 
 const STATE_LABELS: Partial<Record<OvenPlayerState, string>> = {
     idle: "inactief",
@@ -25,7 +18,6 @@ const STATE_LABELS: Partial<Record<OvenPlayerState, string>> = {
 export type StatsHudProps = {
     playerState: OvenPlayerState;
     selection: StreamSelection;
-    qualityTier: QualityTier;
     liveQualityRef: MutableRefObject<OvenPlayerQualityLevel | null>;
     hlsRef: MutableRefObject<any>;
     pcRef: MutableRefObject<RTCPeerConnection | null>;
@@ -61,7 +53,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
 // stream metadata; the live column ("Nu") reflects what the player is actually
 // doing. The live numbers are held in refs and polled here at 1 Hz so frequent
 // buffer/bandwidth updates don't re-render the whole App.
-export default function StatsHud({ playerState, selection, qualityTier, liveQualityRef, hlsRef, pcRef, effectsEnabled, webglEnabled, webglSupport, effectiveRenderer }: StatsHudProps) {
+export default function StatsHud({ playerState, selection, liveQualityRef, hlsRef, pcRef, effectsEnabled, webglEnabled, webglSupport, effectiveRenderer }: StatsHudProps) {
     const [, setTick] = useState(0);
     const webrtcLiveRef = useRef<WebrtcLive | null>(null);
     const prevRef = useRef<{ bytes: number; ts: number; bitrate?: number } | null>(null);
@@ -144,11 +136,12 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
     const renditionStr = (liveW && liveH)
         ? `${liveW}×${liveH}${liveBitrate ? ` · ${formatBitrate(liveBitrate)}` : ""}`
         : null;
-    // "Kwaliteit" resolved side: for an adaptive track ("abr"/"auto") the track
-    // name is uninformative, so show the live-measured height (e.g. "1080p")
-    // instead; concrete/named renditions (720p, full) keep their own label.
-    const isAdaptiveTrack = !!selection && ADAPTIVE_QUALITY_NAMES.includes(String(selection.quality));
-    const qualityResolved = (isAdaptiveTrack && liveH) ? `${liveH}p` : selection?.quality;
+    // "Kwaliteit": the chosen option; for Auto also what ABR currently plays.
+    const option = selection?.option;
+    const qualityLabel = !option ? null
+        : option.auto ? `Auto → ${liveH ? `${liveH}p` : "?"}`
+        : option.rendition ? formatRendition(option.rendition)
+        : String(option.quality);
     // hls.js exposes a throughput estimate; WebRTC's (when present) rides on the
     // selected ICE candidate pair.
     const bandwidthEstimate = isWebrtc ? wrtc?.avail : bandwidth;
@@ -167,7 +160,7 @@ export default function StatsHud({ playerState, selection, qualityTier, liveQual
                 <Row label="Status" value={STATE_LABELS[playerState] ?? playerState} />
                 <Row label="Effecten" value={rendererLabel(effectsEnabled, webglEnabled, webglSupport, effectiveRenderer)} />
                 <Row label="Protocol" value={selection?.protocol} />
-                <Row label="Kwaliteit" value={`${TIER_LABELS[qualityTier]} → ${qualityResolved ?? "?"}`} />
+                <Row label="Kwaliteit" value={qualityLabel} />
                 <Row label="Rendition" value={renditionStr} />
                 <Row label="FPS" value={liveFps ? Math.round(liveFps) : null} />
                 <Row label="Buffer" value={bufferSec != null ? `${bufferSec.toFixed(1)} s` : null} />

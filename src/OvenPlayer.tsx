@@ -1,7 +1,7 @@
 import OvenPlayer from 'ovenplayer'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QualityLock, QualityTier, resolveQualityLock } from './StreamManager';
+import { matchQualityLevel, QualityLevelInfo, QualityOption } from './StreamManager';
 
 // message box with errors div class = op-message-box
 // error text div class = op-message-text
@@ -71,10 +71,10 @@ export type OvenPlayerProps = {
     muted: boolean,
     paused: boolean,
     reloadNonce: number,
-    // When set (live ABR), tier changes call setAutoQuality/setCurrentQuality
-    // in place instead of remounting on a different playlist URL. Idle/fallback
-    // concrete playlists leave this undefined.
-    qualityLockTier: QualityTier | null,
+    // When set (an ABR master), the chosen option is applied as an in-player
+    // level lock instead of remounting on a different playlist URL. Concrete
+    // playlists (idle, B-frame WebRTC fallback) leave this null.
+    qualityLock: QualityOption | null,
 };
 
 // Drive hls.js directly rather than via OvenPlayer's setCurrentQuality, which
@@ -82,14 +82,18 @@ export type OvenPlayerProps = {
 // buffer (a stall on live; during startup it can leave playback stuck in
 // "loading"). loadLevel only changes what the next fragment is fetched at, so
 // the switch lands seamlessly once the already-buffered media has played out.
-function applyHlsLock(hls: any, lock: QualityLock, starting = false) {
-    const target = lock.auto ? -1 : lock.index;
+function applyHlsLock(hls: any, target: number, starting = false) {
     if (starting) {
         hls.startLevel = target;
     }
     if (hls.manualLevel !== target) {
         hls.loadLevel = target;
     }
+}
+
+// The player level index that plays this option; -1 = ABR auto.
+function lockedLevel(option: QualityOption, levels: QualityLevelInfo[]): number {
+    return (option.auto || !option.rendition) ? -1 : matchQualityLevel(option.rendition, levels);
 }
 
 export default function OvenPlayerComponent({
@@ -129,7 +133,7 @@ export default function OvenPlayerComponent({
         muted = false,
         paused = false,
         reloadNonce = 0,
-        qualityLockTier = null,
+        qualityLock = null,
 }: Partial<OvenPlayerProps>) {
     let playerElementRef = useRef<HTMLDivElement>(null);
     let containerElementRef = useRef<HTMLDivElement>(null);
@@ -139,7 +143,7 @@ export default function OvenPlayerComponent({
     let onStateChangedRef = useRef(onStateChanged);
     let onQualityLevelChangedRef = useRef(onQualityLevelChanged);
     let hlsRef = useRef<any>(null);
-    let qualityLockTierRef = useRef<QualityTier | null>(qualityLockTier);
+    let qualityLockRef = useRef<QualityOption | null>(qualityLock);
 
     let [loadedSources, setLoadedSources] = useState<OvenPlayerSource[]>([]);
 
@@ -147,7 +151,7 @@ export default function OvenPlayerComponent({
     mutedRef.current = muted;
     onStateChangedRef.current = onStateChanged;
     onQualityLevelChangedRef.current = onQualityLevelChanged;
-    qualityLockTierRef.current = qualityLockTier;
+    qualityLockRef.current = qualityLock;
 
     const stateChangedCallback = useCallback((event: {prevstate: OvenPlayerState, newstate: OvenPlayerState}) => {
         if (playerRef.current) {
@@ -212,9 +216,9 @@ export default function OvenPlayerComponent({
                 // comes too late for that and would buffer a few seconds of the
                 // wrong rendition on every start.
                 hls.on("hlsManifestParsed", () => { // Hls.Events.MANIFEST_PARSED
-                    const tier = qualityLockTierRef.current;
-                    if (tier !== null) {
-                        applyHlsLock(hls, resolveQualityLock(tier, hls.levels.map((l: any, index: number) => ({index, height: l.height, bitrate: l.bitrate}))), true);
+                    const lock = qualityLockRef.current;
+                    if (lock !== null) {
+                        applyHlsLock(hls, lockedLevel(lock, hls.levels.map((l: any, index: number) => ({index, height: l.height, bitrate: l.bitrate}))), true);
                     }
                 });
                 onHlsPrepared(hls);
@@ -323,11 +327,14 @@ export default function OvenPlayerComponent({
         }
     }, [playerRef, paused]);
 
-    // Apply the global quality tier as an in-player ABR lock once levels exist
-    // (HLS manifest / WebRTC playlist). Retries briefly after a source load —
-    // levels are not available until the provider finishes negotiating.
+    // Apply the chosen option as an in-player ABR lock once levels exist (HLS
+    // manifest / WebRTC playlist). Retries briefly after a source load — levels
+    // are not available until the provider finishes negotiating. Keyed on the
+    // option id: each stream poll hands over a fresh (equal) option object.
+    const qualityLockId = qualityLock?.id ?? null;
     useEffect(() => {
-        if (qualityLockTier === null) {
+        const lock = qualityLockRef.current;
+        if (lock === null) {
             return;
         }
         const apply = (): boolean => {
@@ -339,17 +346,17 @@ export default function OvenPlayerComponent({
             if (!levels?.length) {
                 return false;
             }
-            const lock = resolveQualityLock(qualityLockTier, levels);
+            const target = lockedLevel(lock, levels);
             const hls = hlsRef.current;
             try {
                 if (player.getProviderName() === "hls" && hls) {
-                    applyHlsLock(hls, lock);
-                } else if (lock.auto) {
+                    applyHlsLock(hls, target);
+                } else if (target === -1) {
                     if (!player.isAutoQuality()) {
                         player.setAutoQuality(true);
                     }
-                } else if (player.isAutoQuality() || player.getCurrentQuality() !== lock.index) {
-                    player.setCurrentQuality(lock.index);
+                } else if (player.isAutoQuality() || player.getCurrentQuality() !== target) {
+                    player.setCurrentQuality(target);
                 }
             } catch (e) {
                 console.log("quality lock apply failed:", e);
@@ -371,7 +378,7 @@ export default function OvenPlayerComponent({
             clearInterval(interval);
             clearTimeout(timeout);
         };
-    }, [qualityLockTier, loadedSources, reloadNonce]);
+    }, [qualityLockId, loadedSources, reloadNonce]);
 
     return(
         <div className="player-container" ref={containerElementRef}>

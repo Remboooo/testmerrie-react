@@ -42,13 +42,13 @@ export default function StreamSelector(props: StreamSelectorProps) {
         endedStream,
     } = props;
 
-    function selectStream(stream: string|null, protocol: StreamProtocol|null, quality: StreamQuality|null) {
+    function selectStream(stream: string|null, protocol: StreamProtocol|null) {
         var newSelection: StreamSelectionRequest;
         
-        if (stream === null || (stream == currentStream?.key && (quality == currentStream?.quality || quality === null))) {
+        if (stream === null || stream == currentStream?.key) {
             newSelection = NO_SELECTION;
         } else {
-            newSelection = {key: stream, protocol, quality};
+            newSelection = {key: stream, protocol};
         }
         console.log("select stream", newSelection);
         onStreamRequested(newSelection);
@@ -63,7 +63,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
             sx={{ ...CARD_SX, opacity: 0.55 }}
             className="ended-stream-card"
         >
-            <CardActionArea onClick={() => selectStream(null, null, null)}>
+            <CardActionArea onClick={() => selectStream(null, null)}>
                 <PlaceholderThumb caption="Gestopt" />
                 <CardContent>
                     <Typography gutterBottom variant="h5">{endedStream.stream.name}</Typography>
@@ -116,7 +116,7 @@ export default function StreamSelector(props: StreamSelectorProps) {
                     className={isSelected ? "selected-stream-card" : ""}
                 >
                     <CardActionArea
-                        onClick={() => isSelected ? selectStream(null, null, null) : selectStream(key, null, null)}
+                        onClick={() => isSelected ? selectStream(null, null) : selectStream(key, null)}
                     >
                         {media}
                         <CardContent>

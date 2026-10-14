@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  StreamManager, NO_SELECTION, pickProtocol, resolveQualityTier, resolveIdleSelection,
-  resolvePlaylistQuality, resolveQualityLock,
+  StreamManager, NO_SELECTION, pickProtocol, resolveIdleSelection,
+  qualityOptions, pickOption, matchQualityLevel, QualityOption,
 } from './StreamManager';
-import { StreamMap, StreamQualityMap, StreamSpec } from './BamApi';
+import { Rendition, StreamMap, StreamQualityMap, StreamSpec } from './BamApi';
 
 const Q = (names: string[]): StreamQualityMap => Object.fromEntries(names.map(n => [n, { llhls: n }]));
 
@@ -28,118 +28,116 @@ beforeEach(() => localStorage.clear());
 describe('requestStreamSelection', () => {
   it('selects the requested key/quality/protocol when all are available', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     expect(sm.getSelectedStream()).toMatchObject({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
-  });
-
-  it('falls back to the first quality when the requested quality is unavailable', () => {
-    const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'nonexistent', protocol: 'llhls' });
-    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'llhls' });
   });
 
   it('falls back to the default protocol (webrtc-udp) when the requested protocol is unavailable', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'webrtc-tcp' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'webrtc-tcp' });
     expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'webrtc-udp' });
   });
 
   it('clears the selection for an unknown key', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'nope', quality: null, protocol: null });
+    sm.requestStreamSelection({ key: 'nope', protocol: null });
     expect(sm.getSelectedStream()).toBeNull();
   });
 
   it('clears the selection for NO_SELECTION', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     sm.requestStreamSelection(NO_SELECTION);
     expect(sm.getSelectedStream()).toBeNull();
   });
 });
 
-describe('resolveQualityTier', () => {
-  const full = Q(['abr', 'full', '1080p', '720p', '480p']);
-  it('auto prefers the adaptive rendition', () => expect(resolveQualityTier(full, 'auto')).toBe('abr'));
-  it('best picks the source/highest', () => expect(resolveQualityTier(full, 'best')).toBe('full'));
-  it('saver picks the lowest', () => expect(resolveQualityTier(full, 'saver')).toBe('480p'));
-  it('balanced picks a middle rendition', () => expect(resolveQualityTier(full, 'balanced')).toBe('720p'));
+const R = (height: number, bitrate: number, framerate = 30): Rendition =>
+  ({ width: Math.round(height * 16 / 9), height, framerate, bitrate });
 
-  const noAdaptive = Q(['1080p', '720p', '480p']);
-  it('auto without adaptive uses the highest concrete', () => expect(resolveQualityTier(noAdaptive, 'auto')).toBe('1080p'));
-  it('balanced of three picks the middle', () => expect(resolveQualityTier(noAdaptive, 'balanced')).toBe('720p'));
+// An ABR master over a typical ladder, plus the concrete playlists next to it.
+const LADDER: StreamSpec = {
+  name: 'rem',
+  streams: {
+    auto: { llhls: 'auto-llhls', hls: 'auto-hls', 'webrtc-udp': 'auto-udp' },
+    full: { llhls: 'full-llhls', 'webrtc-udp': 'full-udp' },
+    '480p 500kbps': { llhls: '480-llhls', 'webrtc-udp': '480-udp' },
+  },
+  renditions: {
+    auto: [R(2160, 30000000, 60), R(1080, 6000000, 60), R(720, 2500000), R(480, 500000)],
+    full: [R(2160, 30000000, 60)],
+    '480p 500kbps': [R(480, 500000)],
+  },
+};
 
-  it('degrades gracefully to the only rendition', () => {
-    expect(resolveQualityTier(Q(['480p']), 'best')).toBe('480p');
-    expect(resolveQualityTier(Q(['abr']), 'saver')).toBe('abr');
+describe('qualityOptions', () => {
+  it('offers Auto plus the ABR master\'s renditions, heaviest first', () => {
+    const options = qualityOptions(LADDER, 'llhls');
+    expect(options.map(o => o.id)).toEqual(['auto', 'auto@2160', 'auto@1080', 'auto@720', 'auto@480']);
+    expect(options.every(o => o.quality === 'auto')).toBe(true);
+  });
+
+  it('lists the concrete playlists that serve WebRTC when the master withholds it', () => {
+    const bframes: StreamSpec = {
+      ...LADDER,
+      streams: { ...LADDER.streams, auto: { llhls: 'auto-llhls' }, full: { llhls: 'full-llhls' } },
+    };
+    expect(qualityOptions(bframes, 'webrtc-udp').map(o => o.id)).toEqual(['480p 500kbps']);
+    // Not wanting WebRTC, the master is fine again.
+    expect(qualityOptions(bframes, 'llhls')[0].id).toBe('auto');
+  });
+
+  it('lists concrete playlists without an ABR master, by name when renditions are unknown', () => {
+    const options = qualityOptions({ name: 'x', streams: Q(['480p', 'full', '720p']) }, 'llhls');
+    expect(options.map(o => o.id)).toEqual(['full', '720p', '480p']);
+    expect(options.some(o => o.auto)).toBe(false);
+  });
+
+  it('offers everything when nothing serves WebRTC', () => {
+    expect(qualityOptions({ name: 'x', streams: Q(['full']) }, 'webrtc-udp').map(o => o.id)).toEqual(['full']);
   });
 });
 
-describe('resolvePlaylistQuality', () => {
-  const withAbr: StreamQualityMap = {
-    abr: { llhls: 'a', 'webrtc-udp': 'a-udp' },
-    full: { llhls: 'f', 'webrtc-udp': 'f-udp' },
-    '480p': { llhls: '4' },
-  };
-  const abrNoWebRtc: StreamQualityMap = {
-    auto: { llhls: 'a', hls: 'a-h' },
-    full: { llhls: 'f', hls: 'f-h' },
-    '1080p': { llhls: '1', 'webrtc-udp': '1-udp' },
-    '480p': { llhls: '4', 'webrtc-udp': '4-udp' },
-  };
-
-  it('stays on the ABR master for every tier when WebRTC is not required', () => {
-    expect(resolvePlaylistQuality(withAbr, 'best', 'llhls')).toBe('abr');
-    expect(resolvePlaylistQuality(withAbr, 'saver', 'hls')).toBe('abr');
-    expect(resolvePlaylistQuality(withAbr, 'balanced', null)).toBe('abr');
+describe('pickOption', () => {
+  const options = qualityOptions(LADDER, 'llhls');
+  it('auto picks Auto', () => expect(pickOption(options, 'auto')?.id).toBe('auto'));
+  it('an exact bitrate picks that rendition', () => expect(pickOption(options, 2500000)?.id).toBe('auto@720'));
+  it('closeness is by ratio, not difference', () => {
+    // 4 Mbps: 6M is 1.5x away, 2.5M is 1.6x away.
+    expect(pickOption(options, 4000000)?.id).toBe('auto@1080');
   });
-
-  it('stays on ABR when WebRTC is preferred and the adaptive playlist offers it', () => {
-    expect(resolvePlaylistQuality(withAbr, 'saver', 'webrtc-udp')).toBe('abr');
+  it('clamps beyond either end of the ladder', () => {
+    expect(pickOption(options, 100000000)?.id).toBe('auto@2160');
+    expect(pickOption(options, 100000)?.id).toBe('auto@480');
   });
-
-  it('falls back to WebRTC-capable concrete playlists when adaptive withholds WebRTC', () => {
-    // full has no WebRTC either — skip it; 1080p is the heaviest that offers it.
-    expect(resolvePlaylistQuality(abrNoWebRtc, 'best', 'webrtc-udp')).toBe('1080p');
-    expect(resolvePlaylistQuality(abrNoWebRtc, 'auto', 'webrtc-udp')).toBe('1080p');
-    expect(resolvePlaylistQuality(abrNoWebRtc, 'saver', 'webrtc-udp')).toBe('480p');
-    expect(resolvePlaylistQuality(abrNoWebRtc, 'balanced', 'webrtc-udp', '1080p')).toBe('1080p');
+  it('auto without an ABR master picks the heaviest', () => {
+    expect(pickOption(qualityOptions({ name: 'x', streams: Q(['480p', 'full']) }, 'llhls'), 'auto')?.id).toBe('full');
   });
-
-  it('still uses ABR for LLHLS even when adaptive withholds WebRTC', () => {
-    expect(resolvePlaylistQuality(abrNoWebRtc, 'best', 'llhls')).toBe('auto');
-  });
-
-  it('maps concrete tiers when there is no adaptive playlist', () => {
-    const concrete = Q(['full', '480p']);
-    expect(resolvePlaylistQuality(concrete, 'saver', 'llhls')).toBe('480p');
-    expect(resolvePlaylistQuality(concrete, 'auto', 'llhls', 'full')).toBe('full');
+  it('a bitrate without known renditions falls back to the heaviest', () => {
+    expect(pickOption(qualityOptions({ name: 'x', streams: Q(['480p', 'full']) }, 'llhls'), 500000)?.id).toBe('full');
   });
 });
 
-describe('resolveQualityLock', () => {
-  const levels = [
+describe('matchQualityLevel', () => {
+  // WebRTC lists renditions in OME's playlist order, HLS by bandwidth.
+  const webrtcLevels = [
     { index: 0, height: 1080, bitrate: 6000000 },
-    { index: 1, height: 720, bitrate: 2500000 },
-    { index: 2, height: 480, bitrate: 500000 },
+    { index: 1, height: 480, bitrate: 500000 },
+    { index: 2, height: 720, bitrate: 2500000 },
+    { index: 3, height: 2160, bitrate: 31641136 },
   ];
-  it('auto leaves ABR unlocked', () => expect(resolveQualityLock('auto', levels)).toEqual({ auto: true }));
-  it('best locks the tallest level', () => expect(resolveQualityLock('best', levels)).toEqual({ auto: false, index: 0 }));
-  it('saver locks the shortest level', () => expect(resolveQualityLock('saver', levels)).toEqual({ auto: false, index: 2 }));
-  it('balanced locks a middle level', () => expect(resolveQualityLock('balanced', levels)).toEqual({ auto: false, index: 1 }));
-  it('auto when levels are empty', () => expect(resolveQualityLock('best', [])).toEqual({ auto: true }));
-  it('collapses same-height twins to the higher bitrate', () => {
-    const twins = [
-      { index: 0, height: 2160, bitrate: 20000000 },
-      { index: 1, height: 2160, bitrate: 25000000 }, // Bypass+opus twin
-      { index: 2, height: 1080, bitrate: 6000000 },
-      { index: 3, height: 1080, bitrate: 6100000 },
-      { index: 4, height: 480, bitrate: 500000 },
-    ];
-    expect(resolveQualityLock('best', twins)).toEqual({ auto: false, index: 1 });
-    expect(resolveQualityLock('balanced', twins)).toEqual({ auto: false, index: 3 });
-    expect(resolveQualityLock('saver', twins)).toEqual({ auto: false, index: 4 });
+  it('matches by height regardless of level order', () => {
+    expect(matchQualityLevel(R(720, 2500000), webrtcLevels)).toBe(2);
+    expect(matchQualityLevel(R(2160, 30000000), webrtcLevels)).toBe(3);
   });
+  it('picks the closest bitrate among same-height twins', () => {
+    const twins = [{ index: 0, height: 1080, bitrate: 6160000 }, { index: 1, height: 1080, bitrate: 12000000 }];
+    expect(matchQualityLevel(R(1080, 6000000), twins)).toBe(0);
+  });
+  it('falls back to the closest bitrate when the height is gone', () => {
+    expect(matchQualityLevel(R(900, 2000000), webrtcLevels)).toBe(2);
+  });
+  it('is -1 without levels', () => expect(matchQualityLevel(R(720, 2500000), [])).toBe(-1));
 });
 
 describe('resolveIdleSelection', () => {
@@ -156,15 +154,20 @@ describe('resolveIdleSelection', () => {
     expect(resolveIdleSelection(idle({}), 'auto')).toBeNull();
   });
 
-  it('degrades to the only configured tier regardless of the requested one', () => {
+  it('degrades to the only configured tier regardless of the preference', () => {
     // Q() only offers llhls — used as the no-hls fallback path.
-    const sel = resolveIdleSelection(idle(Q(['full'])), 'saver');
+    const sel = resolveIdleSelection(idle(Q(['full'])), 500000);
     expect(sel).toMatchObject({ key: 'idle', quality: 'full', protocol: 'llhls' });
   });
 
-  it('resolves through the same tier logic as a real stream once multiple qualities exist', () => {
-    const sel = resolveIdleSelection(idle(idleQ(['full', '720p', '480p'])), 'saver');
-    expect(sel).toMatchObject({ quality: '480p', protocol: 'hls' });
+  it('resolves the preference to the closest tier like a real stream', () => {
+    const spec: StreamSpec = {
+      ...idle(idleQ(['full', '720p', '480p'])),
+      renditions: { full: [R(1080, 10000000)], '720p': [R(720, 3000000)], '480p': [R(480, 600000)] },
+    };
+    expect(resolveIdleSelection(spec, 500000)).toMatchObject({ quality: '480p', protocol: 'hls' });
+    expect(resolveIdleSelection(spec, 2500000)).toMatchObject({ quality: '720p' });
+    expect(resolveIdleSelection(spec, 'auto')).toMatchObject({ quality: 'full' });
   });
 
   it('always picks hls even when llhls is listed first', () => {
@@ -178,38 +181,54 @@ describe('resolveIdleSelection', () => {
   });
 });
 
-describe('requestQualityChange', () => {
-  it('re-resolves the current stream to the new tier and persists it', () => {
-    const sm = setup(); // bam/rem offers full + 480p (no adaptive)
-    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'llhls' });
-    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full' }); // auto -> highest concrete
+describe('quality preference', () => {
+  const option = (sm: StreamManager, id: string): QualityOption =>
+    sm.getSelectedStream()!.options.find(o => o.id === id)!;
 
-    sm.requestQualityChange('saver');
-    expect(sm.qualityTier).toBe('saver');
-    expect(sm.getSelectedStream()).toMatchObject({ quality: '480p', protocol: 'llhls' });
-    expect(localStorage.getItem('qualityTier')).toBe('saver');
+  it('a picked rendition locks on the ABR master and stores its bitrate', () => {
+    const sm = setup({ 'bam/rem': LADDER });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
+    expect(sm.getSelectedStream()?.option.id).toBe('auto');
+
+    sm.requestQualityChange(option(sm, 'auto@720'));
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'auto', protocol: 'llhls', option: { id: 'auto@720' } });
+    expect(sm.qualityPreference).toBe(2500000);
+    expect(localStorage.getItem('qualityPreference')).toBe('2500000');
+
+    sm.requestQualityChange(option(sm, 'auto'));
+    expect(sm.qualityPreference).toBe('auto');
+    expect(localStorage.getItem('qualityPreference')).toBe('auto');
   });
 
-  it('keeps the ABR playlist URL when the tier changes (seamless lock)', () => {
+  it('a new stream picks the closest option without storing it', () => {
+    localStorage.setItem('qualityPreference', '4000000');
     const sm = setup({
-      'bam/rem': {
-        name: 'rem',
-        streams: {
-          abr: { llhls: 'abr-llhls', 'webrtc-udp': 'abr-udp' },
-          full: { llhls: 'full-llhls', 'webrtc-udp': 'full-udp' },
-          '480p': { llhls: '480-llhls' },
-        },
-      },
+      'bam/rem': LADDER,
+      'bam/other': { name: 'other', streams: { auto: { llhls: 'o' } }, renditions: { auto: [R(1440, 9000000), R(360, 300000)] } },
     });
-    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'llhls' });
-    expect(sm.getSelectedStream()).toMatchObject({ quality: 'abr', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
+    expect(sm.getSelectedStream()?.option.id).toBe('auto@1080');
+    sm.requestStreamSelection({ key: 'bam/other', protocol: 'llhls' });
+    expect(sm.getSelectedStream()?.option.id).toBe('auto@1440');
+    expect(localStorage.getItem('qualityPreference')).toBe('4000000');
+  });
 
-    sm.requestQualityChange('saver');
-    expect(sm.qualityTier).toBe('saver');
-    expect(sm.getSelectedStream()).toMatchObject({ quality: 'abr', protocol: 'llhls' });
+  it('keeps the chosen option across polls even when its measured bitrate drifts', () => {
+    const sm = setup({ 'bam/rem': LADDER });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
+    sm.requestQualityChange(option(sm, 'auto@2160'));
 
-    sm.requestQualityChange('best');
-    expect(sm.getSelectedStream()).toMatchObject({ quality: 'abr' });
+    sm.availableStreams = { 'bam/rem': { ...LADDER, renditions: { ...LADDER.renditions, auto: [R(2160, 7000000), ...LADDER.renditions!.auto.slice(1)] } } };
+    sm.reconcileSelection();
+    expect(sm.getSelectedStream()?.option.id).toBe('auto@2160');
+  });
+
+  it('switches concrete playlists when there is no ABR master', () => {
+    const sm = setup(); // bam/rem offers full + 480p (no adaptive)
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
+    expect(sm.getSelectedStream()).toMatchObject({ quality: 'full' });
+    sm.requestQualityChange(option(sm, '480p'));
+    expect(sm.getSelectedStream()).toMatchObject({ quality: '480p', protocol: 'llhls' });
   });
 });
 
@@ -222,14 +241,14 @@ describe('requestProtocolChange', () => {
 
   it('changes to an available protocol', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     sm.requestProtocolChange('hls');
     expect(sm.getSelectedStream()).toMatchObject({ quality: 'full', protocol: 'hls' });
   });
 
   it('falls back to the default protocol when the requested one is unavailable for the quality', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     sm.requestProtocolChange('webrtc-tcp'); // "full" has no webrtc-tcp
     expect(sm.getSelectedStream()).toMatchObject({ protocol: 'webrtc-udp' });
   });
@@ -238,7 +257,7 @@ describe('requestProtocolChange', () => {
 describe('sticky ended stream + auto-resume', () => {
   it('moves a vanished playing stream to endedSelection and stops playing', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
 
     sm.availableStreams = {}; // the stream dropped off the list
     sm.reconcileSelection();
@@ -249,7 +268,8 @@ describe('sticky ended stream + auto-resume', () => {
 
   it('auto-resumes with the same quality/protocol when the stream reappears', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: '480p', protocol: 'hls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'hls' });
+    sm.requestQualityChange(sm.getSelectedStream()!.options.find(o => o.id === '480p')!);
     sm.availableStreams = {};
     sm.reconcileSelection(); // ended
 
@@ -265,7 +285,7 @@ describe('sticky ended stream + auto-resume', () => {
     sm.availableStreams = {
       'bam/rem': { ...STREAMS['bam/rem'], starting: true, thumbnail: undefined },
     };
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     expect(sm.getSelectedStream()?.stream.starting).toBe(true);
 
     sm.availableStreams = {
@@ -280,7 +300,7 @@ describe('sticky ended stream + auto-resume', () => {
 
   it('an explicit deselect drops the sticky intent (no resume)', () => {
     const sm = setup();
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     sm.availableStreams = {};
     sm.reconcileSelection();
     expect(sm.getEndedSelection()).not.toBeNull();
@@ -300,7 +320,7 @@ describe('subscribe + snapshots', () => {
     let notifications = 0;
     const unsubscribe = sm.subscribe(() => { notifications++; });
 
-    sm.requestStreamSelection({ key: 'bam/rem', quality: 'full', protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     expect(notifications).toBe(1);
     expect(sm.getSelectedStream()).toMatchObject({ key: 'bam/rem' });
 
@@ -407,25 +427,19 @@ describe('WebRTC withheld for B-frame qualities', () => {
 
   it('with LLHLS stays on the ABR master even when auto withholds WebRTC', () => {
     const sm = setup(BFRAMES);
-    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     expect(sm.getSelectedStream()).toMatchObject({ quality: 'auto', protocol: 'llhls' });
   });
 
   it('falls back to a concrete playlist that still offers WebRTC', () => {
     const sm = setup(BFRAMES);
-    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'webrtc-udp' });
-    expect(sm.getSelectedStream()).toMatchObject({ quality: '1080p', protocol: 'webrtc-udp' });
-  });
-
-  it('honours an explicit webrtc-capable quality when adaptive withholds WebRTC', () => {
-    const sm = setup(BFRAMES);
-    sm.requestStreamSelection({ key: 'bam/rem', quality: '1080p', protocol: 'webrtc-udp' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'webrtc-udp' });
     expect(sm.getSelectedStream()).toMatchObject({ quality: '1080p', protocol: 'webrtc-udp' });
   });
 
   it('returns to ABR+WebRTC once the source stops sending B-frames', () => {
     const sm = setup(BFRAMES);
-    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'webrtc-udp' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'webrtc-udp' });
     expect(sm.getSelectedStream()).toMatchObject({ quality: '1080p', protocol: 'webrtc-udp' });
 
     sm.availableStreams = NO_BFRAMES;
@@ -435,7 +449,7 @@ describe('WebRTC withheld for B-frame qualities', () => {
 
   it('a protocol change to WebRTC while on ABR picks a concrete WebRTC playlist', () => {
     const sm = setup(BFRAMES);
-    sm.requestStreamSelection({ key: 'bam/rem', quality: null, protocol: 'llhls' });
+    sm.requestStreamSelection({ key: 'bam/rem', protocol: 'llhls' });
     expect(sm.getSelectedStream()).toMatchObject({ quality: 'auto', protocol: 'llhls' });
     sm.requestProtocolChange('webrtc-tcp');
     expect(sm.getSelectedStream()).toMatchObject({ quality: '1080p', protocol: 'webrtc-tcp' });

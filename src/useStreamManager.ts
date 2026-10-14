@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { AvailableStreamUpdate, DEFAULT_QUALITY_TIER, QualityTier, StreamManager, StreamSelection } from './StreamManager';
+import { AvailableStreamUpdate, DEFAULT_QUALITY_PREFERENCE, QualityPreference, StreamManager, StreamSelection } from './StreamManager';
 
 const EMPTY_UPDATE: AvailableStreamUpdate = { streamMap: {}, idleStream: undefined, refreshTimestamp: 0 };
 const noopSubscribe = () => () => {};
@@ -14,7 +14,7 @@ export function useStreamManager(authenticated: boolean): {
   availableStreams: AvailableStreamUpdate;
   selectedStream: StreamSelection;
   endedSelection: StreamSelection;
-  qualityTier: QualityTier;
+  qualityPreference: QualityPreference;
   autoStart: boolean;
 } {
   const [manager, setManager] = useState<StreamManager | undefined>();
@@ -32,8 +32,8 @@ export function useStreamManager(authenticated: boolean): {
   const availableStreams = useSyncExternalStore(subscribe, () => manager?.getAvailableStreams() ?? EMPTY_UPDATE);
   const selectedStream = useSyncExternalStore(subscribe, () => manager?.getSelectedStream() ?? null);
   const endedSelection = useSyncExternalStore(subscribe, () => manager?.getEndedSelection() ?? null);
-  const qualityTier = useSyncExternalStore(subscribe, () => manager?.qualityTier ?? DEFAULT_QUALITY_TIER);
+  const qualityPreference = useSyncExternalStore(subscribe, () => manager?.qualityPreference ?? DEFAULT_QUALITY_PREFERENCE);
   const autoStart = useSyncExternalStore(subscribe, () => manager?.autoStart ?? false);
 
-  return { manager, availableStreams, selectedStream, endedSelection, qualityTier, autoStart };
+  return { manager, availableStreams, selectedStream, endedSelection, qualityPreference, autoStart };
 }

@@ -5,7 +5,8 @@ import OvenPlayerComponent, { OvenPlayerQualityLevel, OvenPlayerSource, OvenPlay
 import StreamSelector from './StreamSelector';
 import { StreamProtocol, UserInfo } from './BamApi';
 import { useSnackbar } from 'notistack';
-import { ADAPTIVE_QUALITY_NAMES, AvailableStreamUpdate, NO_SELECTION, QualityTier, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { ADAPTIVE_QUALITY_NAMES, AvailableStreamUpdate, NO_SELECTION, QualityOption, QualityPreference, resolveIdleSelection, StreamManager, StreamSelection, StreamSelectionRequest } from './StreamManager';
+import { formatBitrate, formatRendition } from './FormatUtil';
 import { usePlayerRetry } from './usePlayerRetry';
 import { usePersistedState } from './usePersistedState';
 import { volumeToGain } from './VolumeUtil';
@@ -86,12 +87,14 @@ const PRESET_EFFECTS: Record<Exclude<PresetName, 'custom' | 'off'>, Record<Effec
   },
 };
 
-const QUALITY_OPTIONS: {value: QualityTier, label: string, description: string}[] = [
-  {value: "auto", label: "Auto", description: "Past zich automatisch aan je verbinding aan (adaptief)"},
-  {value: "best", label: "Beste", description: "Hoogste resolutie die de stream biedt"},
-  {value: "balanced", label: "Gebalanceerd", description: "Middenweg tussen kwaliteit en bandbreedte"},
-  {value: "saver", label: "Databesparing", description: "Laagste resolutie, het zuinigst met data"},
-];
+export function qualityOptionLabel(option: QualityOption): string {
+  if (option.auto) return "Auto";
+  return option.rendition ? formatRendition(option.rendition) : String(option.quality);
+}
+
+function qualityPreferenceLabel(preference: QualityPreference): string {
+  return preference === "auto" ? "Auto" : `≈ ${formatBitrate(preference)}`;
+}
 
 // hls.js config used only for the HLS protocol: buffer generously and be patient
 // on slow/unstable networks (the defaults abort loads after 10s).
@@ -135,7 +138,7 @@ export default function App() {
   // "idleVolume" key from that so existing users keep their current idle level.
   const [idleVolume, setIdleVolume] = usePersistedState<number>("idleVolume", Math.round(BACKGROUND_AUDIO_RATIO * volume), (v) => parseInt(v));
   const [authenticated, setAuthenticated] = useState<boolean>(false);
-  const { manager: streamManager, availableStreams, selectedStream, endedSelection, qualityTier, autoStart } = useStreamManager(authenticated);
+  const { manager: streamManager, availableStreams, selectedStream, endedSelection, qualityPreference, autoStart } = useStreamManager(authenticated);
   const [ccConnected, setCcConnected] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [reloadNonce, setReloadNonce] = useState<number>(0);
@@ -238,12 +241,12 @@ export default function App() {
   const [canPlayAudio, setCanPlayAudio] = useState<boolean>(false);
   const [clickCount, setClickCount] = useState<number>(0);
 
-  // Idle loop resolved through the same quality tier as real streams; null when
+  // Idle loop resolved through the same quality preference as real streams; null when
   // no idle stream is configured server-side (or none of its qualities exist yet).
   // Always HLS — independent of the protocol selector (see resolveIdleSelection).
   const idleSelection: StreamSelection = useMemo(
-    () => resolveIdleSelection(availableStreams.idleStream, qualityTier),
-    [availableStreams.idleStream, qualityTier]
+    () => resolveIdleSelection(availableStreams.idleStream, qualityPreference),
+    [availableStreams.idleStream, qualityPreference]
   );
 
   // What to hand Chromecast: the selected stream (once ready), the idle loop when
@@ -344,14 +347,18 @@ export default function App() {
   // and an in-place quality lock keeps the same source.
   useEffect(() => { liveQualityRef.current = null; pcRef.current = null; }, [sourceKey]);
 
-  // Live ABR: drive setAutoQuality/setCurrentQuality from the tier. Idle and
-  // concrete-only streams still swap playlist URLs (no in-player lock).
-  const qualityLockTier: QualityTier | null =
+  // On an ABR master the chosen option is locked in-player. Idle and concrete
+  // playlists swap URLs instead (no in-player lock).
+  const qualityLock: QualityOption | null =
     (!sourcesList.isPlaceholder
       && selectedStream !== null
       && ADAPTIVE_QUALITY_NAMES.includes(String(selectedStream.quality)))
-      ? qualityTier
+      ? selectedStream.option
       : null;
+
+  // The quality dropdown acts on whatever is playing: the selected stream, or
+  // the idle loop in its place.
+  const qualitySelection: StreamSelection = selectedStream ?? (sourcesList.isPlaceholder ? idleSelection : null);
 
   // Playing another protocol than picked because this quality has no WebRTC
   // (B-frame source; see StreamSpec.webrtcUnavailable).
@@ -431,14 +438,14 @@ export default function App() {
     }
   }, [streamManager, drawerOpen, selectedStream]);
 
-  // Chrome's auto-ABR on OME masters is flaky; manual tier locks are fine.
+  // Chrome's auto-ABR on OME masters is flaky; manual locks are fine.
   useEffect(() => {
-    if (qualityLockTier === 'auto' && !!window.chrome) {
+    if (qualityLock?.auto && !!window.chrome) {
         enqueueSnackbar(<>
             ABR werkt slecht in Chrome, zie&nbsp;<Link target="_blank" href="https://github.com/AirenSoft/OvenMediaEngine/discussions/1066#discussioncomment-7902333">dit issue</Link>
         </>, {persist: false, variant: 'warning'});
     }
-  }, [qualityLockTier]);
+  }, [qualityLock?.id]);
 
   let effectivelyMuted = muted || !canPlayAudio;
   let effectiveVolume = volumeToGain(sourcesList.isPlaceholder ? idleVolume : volume);
@@ -475,7 +482,7 @@ export default function App() {
               muted={effectivelyMuted}
               paused={ccConnected}
               reloadNonce={reloadNonce}
-              qualityLockTier={qualityLockTier}
+              qualityLock={qualityLock}
               onQualityLevelChanged={(event) => {liveQualityRef.current = event.currentQuality;}}
               onHlsPrepared={(hls) => {hlsRef.current = hls;}}
               onHlsDestroyed={() => {hlsRef.current = null;}}
@@ -579,7 +586,6 @@ export default function App() {
             <StatsHud
               playerState={playerState}
               selection={hudSelection}
-              qualityTier={qualityTier}
               liveQualityRef={liveQualityRef}
               hlsRef={hlsRef}
               pcRef={pcRef}
@@ -684,18 +690,22 @@ export default function App() {
                       <Select
                         labelId="quality-select-label"
                         id="quality-select"
-                        value={qualityTier}
+                        value={qualitySelection?.option.id ?? ""}
                         label="Kwaliteit"
-                        sx={{width: '11em'}}
-                        renderValue={(value) => QUALITY_OPTIONS.find(o => o.value === value)?.label ?? value}
+                        sx={{width: '13em'}}
+                        displayEmpty
+                        disabled={qualitySelection === null}
+                        renderValue={() => qualitySelection ? qualityOptionLabel(qualitySelection.option) : qualityPreferenceLabel(qualityPreference)}
                         onChange={(event: SelectChangeEvent) => {
-                          streamManager?.requestQualityChange(event.target.value as QualityTier);
+                          const option = qualitySelection?.options.find(o => o.id === event.target.value);
+                          if (option) {
+                            streamManager?.requestQualityChange(option);
+                          }
                         }}
                       >
-                        {QUALITY_OPTIONS.map(({value, label, description}) => (
-                          <MenuItem key={value} value={value} sx={{display: 'block', whiteSpace: 'normal', maxWidth: '22em'}}>
-                            <Typography variant="body2">{label}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{display: 'block'}}>{description}</Typography>
+                        {(qualitySelection?.options ?? []).map(option => (
+                          <MenuItem key={option.id} value={option.id}>
+                            <Typography variant="body2">{qualityOptionLabel(option)}</Typography>
                           </MenuItem>
                         ))}
                       </Select>
